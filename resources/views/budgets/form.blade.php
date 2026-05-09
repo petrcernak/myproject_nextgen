@@ -32,6 +32,14 @@
                 <input type="date" name="date" value="{{ old('date', isset($budget) ? $budget->date?->format('Y-m-d') : now()->format('Y-m-d')) }}" required>
                 @error('date')<span class="form-error">{{ $message }}</span>@enderror
             </div>
+            <div class="form-group" style="max-width:120px">
+                <label>{{ __('Currency') }} *</label>
+                <select name="currency" required>
+                    @foreach(['CZK','EUR','USD','PLN'] as $c)
+                        <option value="{{ $c }}" @selected(old('currency', ($budget ?? null)?->currency ?? $currentGroup?->currency ?? 'CZK') === $c)>{{ $c }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
 
         <div class="form-group">

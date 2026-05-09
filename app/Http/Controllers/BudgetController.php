@@ -82,10 +82,11 @@ class BudgetController extends Controller
         abort_unless($project->id_group == $this->currentGroupId(), 403);
         abort_unless($this->currentUser()->canWrite($project), 403);
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:50'],
-            'name' => ['required', 'string', 'max:255'],
-            'date' => ['required', 'date'],
-            'note' => ['nullable', 'string'],
+            'code'     => ['required', 'string', 'max:50'],
+            'name'     => ['required', 'string', 'max:255'],
+            'date'     => ['required', 'date'],
+            'currency' => ['required', 'string', 'max:10'],
+            'note'     => ['nullable', 'string'],
         ]);
 
         $data['project_id'] = $project->id;
@@ -104,10 +105,11 @@ class BudgetController extends Controller
     {
         $this->authorizeBudget($budget, requireWrite: true);
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:50'],
-            'name' => ['required', 'string', 'max:255'],
-            'date' => ['required', 'date'],
-            'note' => ['nullable', 'string'],
+            'code'     => ['required', 'string', 'max:50'],
+            'name'     => ['required', 'string', 'max:255'],
+            'date'     => ['required', 'date'],
+            'currency' => ['required', 'string', 'max:10'],
+            'note'     => ['nullable', 'string'],
         ]);
 
         $budget->update($data);

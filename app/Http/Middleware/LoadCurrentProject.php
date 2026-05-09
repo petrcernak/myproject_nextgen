@@ -21,10 +21,10 @@ class LoadCurrentProject
 
             // Superadmin může mít v session přepnutou skupinu, ostatní mají fixní skupinu
             if ($user->isSuperAdmin() && session('current_group_id')) {
-                $currentGroup = Group::select('id', 'name')->find(session('current_group_id'));
+                $currentGroup = Group::select('id', 'name', 'currency')->find(session('current_group_id'));
             }
             if (!$currentGroup) {
-                $currentGroup = Group::select('id', 'name')->find($user->id_group);
+                $currentGroup = Group::select('id', 'name', 'currency')->find($user->id_group);
                 if ($currentGroup && $user->isSuperAdmin()) {
                     session(['current_group_id' => $currentGroup->id]);
                 }

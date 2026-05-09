@@ -11,11 +11,31 @@
         <form method="GET" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:flex-end">
             <div>
                 <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem">{{ __('Search') }}</label>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="{{ __('Number / description...') }}" style="width:200px">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="{{ __('Number / description...') }}" style="width:180px">
+            </div>
+            <div>
+                <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem">{{ __('Contract') }}</label>
+                <select name="contract_id" style="width:200px" onchange="this.form.submit()">
+                    <option value="">{{ __('All contracts') }}</option>
+                    @foreach($contracts as $c)
+                        <option value="{{ $c->id }}" @selected(request('contract_id') == $c->id)>
+                            {{ $c->code ? $c->code.' — ' : '' }}{{ $c->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem">{{ __('Company') }}</label>
+                <select name="company_id" style="width:180px" onchange="this.form.submit()">
+                    <option value="">{{ __('All companies') }}</option>
+                    @foreach($companies as $id => $name)
+                        <option value="{{ $id }}" @selected(request('company_id') == $id)>{{ $name }}</option>
+                    @endforeach
+                </select>
             </div>
             <div>
                 <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem">{{ __('Status') }}</label>
-                <select name="status" style="width:170px">
+                <select name="status" style="width:160px" onchange="this.form.submit()">
                     <option value="">{{ __('All statuses') }}</option>
                     <option value="1" @selected(request('status')=='1')>{{ __('Awaiting payment') }}</option>
                     <option value="3" @selected(request('status')=='3')>{{ __('Due soon') }}</option>
@@ -25,14 +45,14 @@
             </div>
             <div>
                 <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem">{{ __('From') }}</label>
-                <input type="date" name="from" value="{{ request('from') }}" style="width:145px">
+                <input type="date" name="from" value="{{ request('from') }}" style="width:140px">
             </div>
             <div>
                 <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem">{{ __('To') }}</label>
-                <input type="date" name="to" value="{{ request('to') }}" style="width:145px">
+                <input type="date" name="to" value="{{ request('to') }}" style="width:140px">
             </div>
             <button type="submit" class="btn btn-secondary">{{ __('Filter') }}</button>
-            @if(request()->hasAny(['search','status','from','to']))
+            @if(request()->hasAny(['search','contract_id','company_id','status','from','to']))
                 <a href="{{ route('invoices.index') }}" class="btn btn-secondary">{{ __('Clear') }}</a>
             @endif
         </form>

@@ -55,7 +55,7 @@
             <tr>
                 <th style="width:110px">{{ __('Code') }}</th>
                 <th>{{ __('Description') }}</th>
-                <th style="text-align:right;width:160px">{{ __('Amount') }}</th>
+                <th style="text-align:right;width:160px">{{ __('Amount') }} ({{ $budget->currency }})</th>
                 <th style="width:120px"></th>
             </tr>
         </thead>

@@ -43,6 +43,45 @@
     </div>
 </div>
 
+{{-- Contract items billing overview --}}
+@if($contractItems->isNotEmpty())
+<div class="page-header" style="margin-bottom:.75rem">
+    <h2 style="font-size:1rem">{{ __('Contract items billing') }}</h2>
+</div>
+<div class="card" style="margin-bottom:1.5rem">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:90px">{{ __('Code') }}</th>
+                <th>{{ __('Description') }}</th>
+                <th style="text-align:right;width:140px">{{ __('Contract amount') }}</th>
+                <th style="text-align:right;width:140px">{{ __('Invoiced') }}</th>
+                <th style="text-align:right;width:140px">{{ __('Remaining') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($contractItems as $ci)
+            @php $pct = $ci->amount > 0 ? min(100, round($ci->invoiced_amount / $ci->amount * 100)) : 0; @endphp
+            <tr>
+                <td><code style="color:#6b7280;font-size:12px">{{ $ci->code ?? '—' }}</code></td>
+                <td>
+                    {{ $ci->description }}
+                    <div style="margin-top:.3rem;height:4px;background:#e5e7eb;border-radius:2px;width:100%">
+                        <div style="height:4px;border-radius:2px;background:{{ $pct >= 100 ? '#22c55e' : ($pct > 0 ? '#3b82f6' : '#e5e7eb') }};width:{{ $pct }}%"></div>
+                    </div>
+                </td>
+                <td style="text-align:right">{{ number_format($ci->amount, 2, ',', ' ') }}</td>
+                <td style="text-align:right;color:#6b7280">{{ number_format($ci->invoiced_amount, 2, ',', ' ') }}</td>
+                <td style="text-align:right;font-weight:{{ $ci->remaining_amount > 0 ? '600' : '400' }};color:{{ $ci->remaining_amount > 0 ? '#1d4ed8' : ($ci->remaining_amount < 0 ? '#dc2626' : '#6b7280') }}">
+                    {{ number_format($ci->remaining_amount, 2, ',', ' ') }}
+                </td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+</div>
+@endif
+
 <div class="page-header" style="margin-bottom:.75rem">
     <h2 style="font-size:1rem">{{ __('Invoice items') }}</h2>
 </div>
@@ -52,11 +91,17 @@
     @else
         <table>
             <thead>
-                <tr><th>{{ __('Description') }}</th><th style="text-align:right">{{ __('Amount') }} ({{ $invoice->contract->currency }})</th><th></th></tr>
+                <tr>
+                    <th style="width:90px">{{ __('Contract item') }}</th>
+                    <th>{{ __('Description') }}</th>
+                    <th style="text-align:right">{{ __('Amount') }} ({{ $invoice->contract->currency }})</th>
+                    <th></th>
+                </tr>
             </thead>
             <tbody>
                 @foreach($invoice->items as $item)
                 <tr>
+                    <td><code style="color:#6b7280;font-size:12px">{{ $item->contractItem?->code ?? '—' }}</code></td>
                     <td>{{ $item->description }}</td>
                     <td style="text-align:right">{{ number_format($item->amount, 2, ',', ' ') }}</td>
                     <td style="text-align:right">
@@ -68,7 +113,7 @@
                 </tr>
                 @endforeach
                 <tr style="background:#f9fafb">
-                    <td style="font-weight:600">{{ __('Total') }}</td>
+                    <td colspan="2" style="font-weight:600">{{ __('Total') }}</td>
                     <td style="text-align:right;font-weight:600">{{ number_format($invoice->total, 2, ',', ' ') }}</td>
                     <td></td>
                 </tr>
@@ -77,18 +122,44 @@
     @endif
 
     <div style="padding:1rem;border-top:1px solid #f3f4f6">
-        <form method="POST" action="{{ route('invoices.items.store', $invoice) }}" style="display:flex;gap:.5rem;align-items:flex-end">
+        <form method="POST" action="{{ route('invoices.items.store', $invoice) }}">
             @csrf
-            <div style="flex:1">
-                <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.25rem">{{ __('Item description') }}</label>
-                <input type="text" name="description" placeholder="{{ __('Item name...') }}" required>
+            <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:.5rem;align-items:flex-end">
+                <div>
+                    <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.25rem">{{ __('Contract item') }}</label>
+                    <select name="contract_item_id" id="ciSelect" onchange="fillFromContractItem(this)">
+                        <option value="">{{ __('— free item —') }}</option>
+                        @foreach($contractItems as $ci)
+                        <option value="{{ $ci->id }}"
+                                data-description="{{ $ci->description }}"
+                                data-remaining="{{ number_format($ci->remaining_amount, 2, '.') }}"
+                                style="{{ $ci->remaining_amount <= 0 ? 'color:#9ca3af' : '' }}">
+                            {{ $ci->code ? $ci->code.' — ' : '' }}{{ Str::limit($ci->description, 35) }}
+                            &nbsp;({{ __('rem.') }}: {{ number_format($ci->remaining_amount, 2, ',', ' ') }})
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.25rem">{{ __('Description') }} *</label>
+                    <input type="text" name="description" id="itemDescription" placeholder="{{ __('Item name...') }}" required>
+                </div>
+                <div style="width:160px">
+                    <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.25rem">{{ __('Amount') }} ({{ $invoice->contract->currency }})</label>
+                    <input type="number" name="amount" id="itemAmount" step="0.01" placeholder="0.00" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="white-space:nowrap">{{ __('+ Add') }}</button>
             </div>
-            <div style="width:160px">
-                <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:.25rem">{{ __('Amount') }} ({{ $invoice->contract->currency }})</label>
-                <input type="number" name="amount" step="0.01" placeholder="0.00" required>
-            </div>
-            <button type="submit" class="btn btn-primary" style="white-space:nowrap">{{ __('+ Add') }}</button>
         </form>
     </div>
 </div>
+
+<script>
+function fillFromContractItem(select) {
+    const opt = select.options[select.selectedIndex];
+    if (!opt.value) return;
+    document.getElementById('itemDescription').value = opt.dataset.description;
+    document.getElementById('itemAmount').value = opt.dataset.remaining;
+}
+</script>
 @endsection

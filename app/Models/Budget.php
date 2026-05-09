@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Budget extends Model
 {
-    protected $fillable = ['project_id', 'code', 'name', 'date', 'note'];
+    protected $fillable = ['project_id', 'code', 'name', 'date', 'currency', 'note'];
 
     protected function casts(): array
     {

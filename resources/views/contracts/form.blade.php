@@ -30,8 +30,8 @@
             <div class="form-group">
                 <label>{{ __('Currency') }} *</label>
                 <select name="currency">
-                    @foreach(['CZK','EUR','USD','GBP'] as $c)
-                        <option value="{{ $c }}" @selected(old('currency', $contract->currency ?? 'CZK') === $c)>{{ $c }}</option>
+                    @foreach(['CZK','EUR','USD','PLN'] as $c)
+                        <option value="{{ $c }}" @selected(old('currency', ($contract ?? null)?->currency ?? $currentGroup?->currency ?? 'CZK') === $c)>{{ $c }}</option>
                     @endforeach
                 </select>
             </div>
@@ -71,6 +71,19 @@
             <div class="form-group">
                 <label>{{ __('Maturity (days)') }}</label>
                 <input type="number" name="maturity" value="{{ old('maturity', $contract->maturity ?? 30) }}" min="0">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>{{ __('Retention short-term (%)') }}</label>
+                <input type="number" name="retention_short" value="{{ old('retention_short', $contract->retention_short ?? '') }}" min="0" max="100" step="0.01" placeholder="0.00">
+                @error('retention_short')<span class="form-error">{{ $message }}</span>@enderror
+            </div>
+            <div class="form-group">
+                <label>{{ __('Retention long-term (%)') }}</label>
+                <input type="number" name="retention_long" value="{{ old('retention_long', $contract->retention_long ?? '') }}" min="0" max="100" step="0.01" placeholder="0.00">
+                @error('retention_long')<span class="form-error">{{ $message }}</span>@enderror
             </div>
         </div>
 

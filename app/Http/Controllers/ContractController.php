@@ -32,24 +32,39 @@ class ContractController extends Controller
                 ->with('error', __('Please select a project first.'));
         }
 
+        $currencies = Contract::where('project_id', $projectId)
+            ->distinct()->orderBy('currency')->pluck('currency');
+
+        $companies = \App\Models\Company::whereIn('id',
+            Contract::where('project_id', $projectId)->whereNotNull('company_id')->pluck('company_id')
+        )->orderBy('name')->pluck('name', 'id');
+
         $contracts = Contract::with(['company'])
             ->where('project_id', $projectId)
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
                 $q2->where('name', 'ilike', "%{$request->search}%")
                    ->orWhere('code', 'ilike', "%{$request->search}%");
             }))
-            ->when($request->direction, fn ($q) => $q->where('direction', $request->direction))
+            ->when($request->direction,  fn ($q) => $q->where('direction', $request->direction))
+            ->when($request->currency,   fn ($q) => $q->where('currency', $request->currency))
+            ->when($request->company_id, fn ($q) => $q->where('company_id', $request->company_id))
             ->orderByDesc('created_at')
             ->paginate(50)
             ->withQueryString();
 
-        return view('contracts.index', compact('contracts'));
+        return view('contracts.index', compact('contracts', 'currencies', 'companies'));
     }
 
     public function show(Contract $contract): View
     {
         $this->authorizeContract($contract);
-        $contract->load(['project', 'company', 'items', 'invoices']);
+        $contract->load([
+            'project', 'company', 'items.invoiceItems', 'items.changeOrderItems.changeOrder', 'items.amendmentItems', 'invoices',
+            'amendments.items.contractItem', 'amendments.changeOrders.items.contractItem',
+            'standaloneChangeOrders.items.contractItem',
+            'changeRequests.items.latestRevision',
+            'anticipateds.items',
+        ]);
         $canEdit = $this->currentUser()->canWrite($contract->project);
         return view('contracts.show', compact('contract', 'canEdit'));
     }
@@ -84,8 +99,10 @@ class ContractController extends Controller
             'currency'    => ['required', 'string', 'max:10'],
             'date'        => ['required', 'date'],
             'description' => ['nullable', 'string'],
-            'maturity'    => ['nullable', 'integer', 'min:0'],
-            'note'        => ['nullable', 'string'],
+            'maturity'         => ['nullable', 'integer', 'min:0'],
+            'retention_short'  => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'retention_long'   => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'note'             => ['nullable', 'string'],
         ]);
 
         $data['project_id'] = $project->id;
@@ -113,8 +130,10 @@ class ContractController extends Controller
             'currency'    => ['required', 'string', 'max:10'],
             'date'        => ['required', 'date'],
             'description' => ['nullable', 'string'],
-            'maturity'    => ['nullable', 'integer', 'min:0'],
-            'note'        => ['nullable', 'string'],
+            'maturity'         => ['nullable', 'integer', 'min:0'],
+            'retention_short'  => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'retention_long'   => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'note'             => ['nullable', 'string'],
         ]);
 
         $contract->update($data);

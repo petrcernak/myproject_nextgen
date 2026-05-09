@@ -20,6 +20,7 @@
                 <tr>
                     <th>{{ __('Code') }}</th>
                     <th>{{ __('Name') }}</th>
+                    <th>{{ __('Default currency') }}</th>
                     <th style="text-align:right">{{ __('Users') }}</th>
                     <th style="text-align:right">{{ __('Projects') }}</th>
                     <th></th>
@@ -30,6 +31,7 @@
                 <tr>
                     <td><code style="color:#6b7280;font-size:12px">{{ $group->code }}</code></td>
                     <td><a href="{{ route('groups.show', $group) }}">{{ $group->name }}</a></td>
+                    <td><code style="font-size:12px;color:#374151">{{ $group->currency }}</code></td>
                     <td style="text-align:right">{{ $group->users_count }}</td>
                     <td style="text-align:right">{{ $group->projects_count }}</td>
                     <td style="text-align:right">

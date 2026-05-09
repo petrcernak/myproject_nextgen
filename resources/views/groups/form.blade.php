@@ -28,6 +28,14 @@
                 <label>{{ __('Name') }} *</label>
                 <input type="text" name="name" value="{{ old('name', $group->name ?? '') }}" placeholder="Acme s.r.o." required>
             </div>
+            <div class="form-group" style="margin-bottom:0;max-width:110px">
+                <label>{{ __('Default currency') }} *</label>
+                <select name="currency" required>
+                    @foreach(['CZK','EUR','USD','PLN'] as $c)
+                        <option value="{{ $c }}" @selected(old('currency', $group->currency ?? 'CZK') === $c)>{{ $c }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
 
         <div class="form-actions">

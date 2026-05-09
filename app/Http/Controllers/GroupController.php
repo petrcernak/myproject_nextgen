@@ -31,8 +31,9 @@ class GroupController extends Controller
     {
         $this->authorizeSuperAdmin();
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:50', 'unique:groups,code'],
+            'name'     => ['required', 'string', 'max:255'],
+            'code'     => ['required', 'string', 'max:50', 'unique:groups,code'],
+            'currency' => ['required', 'string', 'max:10'],
         ]);
         $group = Group::create($data);
         return redirect()->route('groups.show', $group)->with('success', __('Group created.'));
@@ -55,8 +56,9 @@ class GroupController extends Controller
     {
         $this->authorizeSuperAdmin();
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:50', 'unique:groups,code,' . $group->id],
+            'name'     => ['required', 'string', 'max:255'],
+            'code'     => ['required', 'string', 'max:50', 'unique:groups,code,' . $group->id],
+            'currency' => ['required', 'string', 'max:10'],
         ]);
         $group->update($data);
         return redirect()->route('groups.show', $group)->with('success', __('Group saved.'));

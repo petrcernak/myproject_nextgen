@@ -10,6 +10,7 @@
 <div class="page-header">
     <div>
         <h1>{{ $group->name }} <code style="font-size:.8em;color:#6b7280">{{ $group->code }}</code></h1>
+        <div style="font-size:13px;color:#6b7280;margin-top:.2rem">{{ __('Default currency') }}: <strong>{{ $group->currency }}</strong></div>
     </div>
     <div style="display:flex;gap:.5rem">
         <a href="{{ route('groups.edit', $group) }}" class="btn btn-secondary">{{ __('Edit') }}</a>

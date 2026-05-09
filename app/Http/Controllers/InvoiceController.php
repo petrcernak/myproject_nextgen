@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Project;
@@ -28,7 +29,11 @@ class InvoiceController extends Controller
                 ->with('error', __('Please select a project first.'));
         }
 
-        $contractIds = Contract::where('project_id', $projectId)->pluck('id');
+        $contracts = Contract::where('project_id', $projectId)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractIds = $contracts->pluck('id');
+
+        $companies = Company::where('id_group', $this->currentGroupId())
+            ->orderBy('name')->pluck('name', 'id');
 
         $invoices = Invoice::with(['contract', 'sender', 'recipient'])
             ->whereIn('contract_id', $contractIds)
@@ -36,6 +41,8 @@ class InvoiceController extends Controller
                 $q2->where('no', 'ilike', "%{$request->search}%")
                    ->orWhere('description', 'ilike', "%{$request->search}%");
             }))
+            ->when($request->contract_id, fn ($q) => $q->where('contract_id', $request->contract_id))
+            ->when($request->company_id,  fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('company_id', $request->company_id)))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->from, fn ($q) => $q->where('issued', '>=', $request->from))
             ->when($request->to,   fn ($q) => $q->where('issued', '<=', $request->to))
@@ -43,14 +50,19 @@ class InvoiceController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        return view('invoices.index', compact('invoices'));
+        return view('invoices.index', compact('invoices', 'contracts', 'companies'));
     }
 
     public function show(Invoice $invoice): View
     {
         $this->authorizeInvoice($invoice);
-        $invoice->load(['contract.project', 'sender', 'recipient', 'items']);
-        return view('invoices.show', compact('invoice'));
+        $invoice->load(['contract.project', 'sender', 'recipient', 'items.contractItem']);
+        $contractItems = $invoice->contract->items()
+            ->with('invoiceItems')
+            ->orderBy('sort')
+            ->get()
+            ->each(fn ($item) => $item->append(['invoiced_amount', 'remaining_amount']));
+        return view('invoices.show', compact('invoice', 'contractItems'));
     }
 
     public function create(Contract $contract): View
@@ -78,9 +90,11 @@ class InvoiceController extends Controller
             'note'        => ['nullable', 'string'],
         ]);
 
+        $projectCompanyId = $contract->project->id_company;
+
         $data['contract_id'] = $contract->id;
-        $data['sendby_id']   = $contract->direction === 1 ? null : $contract->company_id;
-        $data['sendto_id']   = $contract->direction === 1 ? $contract->company_id : null;
+        $data['sendby_id']   = $contract->direction === 1 ? $projectCompanyId : $contract->company_id;
+        $data['sendto_id']   = $contract->direction === 1 ? $contract->company_id : $projectCompanyId;
 
         $invoice = Invoice::create($data);
         $invoice->recalculateStatus();

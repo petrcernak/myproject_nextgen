@@ -10,9 +10,9 @@
 <div class="page-header">
     <div>
         <h1>{{ $budget->name }} <code style="font-size:.8em;color:#6b7280">{{ $budget->code }}</code></h1>
-        @if($budget->date)
-            <div style="font-size:13px;color:#6b7280;margin-top:.2rem">{{ $budget->date->format('d.m.Y') }}</div>
-        @endif
+        <div style="font-size:13px;color:#6b7280;margin-top:.2rem">
+            {{ $budget->currency }}{{ $budget->date ? ' · '.$budget->date->format('d.m.Y') : '' }}
+        </div>
     </div>
     <div style="display:flex;gap:.5rem">
         @if($canEdit)
@@ -63,7 +63,7 @@
             <tr>
                 <th style="width:110px">{{ __('Code') }}</th>
                 <th>{{ __('Description') }}</th>
-                <th style="text-align:right">{{ __('Amount') }}</th>
+                <th style="text-align:right">{{ __('Amount') }} ({{ $budget->currency }})</th>
             </tr>
         </thead>
         <tbody>
