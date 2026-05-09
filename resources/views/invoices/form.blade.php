@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', isset($invoice) ? __('Edit invoice') : __('New invoice'))
+@section('title', isset($invoice) ? __('Edit invoice') : ($isAdvance ? __('New advance invoice') : __('New invoice')))
 
 @section('content')
 <div class="breadcrumb">
@@ -10,25 +10,45 @@
         <a href="{{ route('invoices.show', $invoice) }}"><span>{{ $invoice->no }}</span></a>
         <span>{{ __('Edit') }}</span>
     @else
-        <span>{{ __('New invoice') }}</span>
+        <span>{{ $isAdvance ? __('New advance invoice') : __('New invoice') }}</span>
     @endisset
 </div>
 
 <div class="page-header">
-    <h1>{{ isset($invoice) ? __('Edit invoice') : __('New invoice') }}</h1>
+    <h1>{{ isset($invoice) ? __('Edit invoice') : ($isAdvance ? __('New advance invoice') : __('New invoice')) }}</h1>
 </div>
 
 <div class="card card-body" style="max-width:700px">
     <form method="POST" action="{{ isset($invoice) ? route('invoices.update', $invoice) : route('contracts.invoices.store', $contract) }}">
         @csrf
         @isset($invoice) @method('PUT') @endisset
+        <input type="hidden" name="is_advance" value="{{ $isAdvance ? '1' : '0' }}">
 
+        @if($isAdvance)
+        {{-- Advance invoice: just one amount + basic fields --}}
+        <div style="background:#fef9c3;padding:1rem;border-radius:6px;margin-bottom:1.25rem;font-size:13px;color:#92400e">
+            {{ __('Advance invoice') }} — {{ __('single amount, no contract items') }}
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>{{ __('Invoice number *') }}</label>
+                <input type="text" name="no" value="{{ old('no', $invoice->no ?? '') }}" required>
+            </div>
+            <div class="form-group" style="max-width:200px">
+                <label>{{ __('Advance amount') }} * ({{ $contract->currency }})</label>
+                <input type="number" name="advance_amount" step="0.01" min="0"
+                    value="{{ old('advance_amount', isset($invoice) ? $invoice->advance_amount : '') }}" required>
+            </div>
+        </div>
+        @else
+        {{-- Regular invoice --}}
         <div class="form-row">
             <div class="form-group">
                 <label>{{ __('Invoice number *') }}</label>
                 <input type="text" name="no" value="{{ old('no', $invoice->no ?? '') }}" required>
             </div>
         </div>
+        @endif
 
         <div class="form-group">
             <label>{{ __('Description') }}</label>
@@ -41,8 +61,8 @@
                 <input type="date" name="issued" value="{{ old('issued', isset($invoice) ? $invoice->issued?->format('Y-m-d') : '') }}">
             </div>
             <div class="form-group">
-                <label>{{ __('Tax date') }}</label>
-                <input type="date" name="taxdate" value="{{ old('taxdate', isset($invoice) ? $invoice->taxdate?->format('Y-m-d') : '') }}">
+                <label>{{ __('Tax date') }} *</label>
+                <input type="date" name="taxdate" value="{{ old('taxdate', isset($invoice) ? $invoice->taxdate?->format('Y-m-d') : '') }}" required>
             </div>
             <div class="form-group">
                 <label>{{ __('Due date') }}</label>

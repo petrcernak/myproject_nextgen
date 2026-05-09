@@ -8,11 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ContractItem extends Model
 {
-    protected $fillable = ['contract_id', 'code', 'description', 'amount', 'sort'];
+    protected $fillable = ['contract_id', 'contract_category_id', 'code', 'description', 'amount', 'sort'];
 
     public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ContractCategory::class, 'contract_category_id');
     }
 
     public function invoiceItems(): HasMany
@@ -28,6 +33,16 @@ class ContractItem extends Model
     public function amendmentItems(): HasMany
     {
         return $this->hasMany(AmendmentItem::class);
+    }
+
+    public function changeRequestItems(): HasMany
+    {
+        return $this->hasMany(ChangeRequestItem::class);
+    }
+
+    public function anticipatedItems(): HasMany
+    {
+        return $this->hasMany(ContractAnticipatedItem::class);
     }
 
     public function getInvoicedAmountAttribute(): float

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ContractAnticipated extends Model
 {
+    use LogsActivity;
+
     protected $fillable = ['contract_id', 'code', 'name', 'date', 'note'];
 
     protected function casts(): array

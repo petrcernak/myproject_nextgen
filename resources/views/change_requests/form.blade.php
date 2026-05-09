@@ -40,6 +40,17 @@
         </div>
 
         <div class="form-group">
+            <label>{{ __('Status') }}</label>
+            <select name="status">
+                <option value="open"      @selected(old('status', $changeRequest->status ?? 'open') === 'open')>{{ __('Open') }}</option>
+                <option value="on_hold"   @selected(old('status', $changeRequest->status ?? '') === 'on_hold')>{{ __('On hold') }}</option>
+                <option value="closed"    @selected(old('status', $changeRequest->status ?? '') === 'closed')>{{ __('Closed') }}</option>
+                <option value="rejected"  @selected(old('status', $changeRequest->status ?? '') === 'rejected')>{{ __('Rejected') }}</option>
+                <option value="converted" @selected(old('status', $changeRequest->status ?? '') === 'converted')>{{ __('Converted') }}</option>
+            </select>
+        </div>
+
+        <div class="form-group">
             <label>{{ __('Note') }}</label>
             <textarea name="note" rows="3">{{ old('note', $changeRequest->note ?? '') }}</textarea>
         </div>

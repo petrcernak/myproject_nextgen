@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use App\Models\File;
 
 class Amendment extends Model
 {
+    use LogsActivity;
+
     protected $fillable = ['contract_id', 'code', 'name', 'date', 'note'];
 
     protected function casts(): array
@@ -28,6 +33,11 @@ class Amendment extends Model
     public function changeOrders(): HasMany
     {
         return $this->hasMany(ChangeOrder::class)->orderBy('date')->orderBy('code');
+    }
+
+    public function files(): MorphMany
+    {
+        return $this->morphMany(File::class, 'fileable')->orderByDesc('created_at');
     }
 
     public function getTotalAttribute(): float

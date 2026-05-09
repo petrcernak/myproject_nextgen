@@ -27,8 +27,13 @@
             <option value="{{ $a->id }}" @selected(request('amendment_id') == $a->id)>{{ $a->code }} — {{ $a->name }}</option>
         @endforeach
     </select>
+    <select name="file_filter" style="width:150px" onchange="this.form.submit()">
+        <option value="">{{ __('All') }}</option>
+        <option value="0" @selected(request('file_filter')==='0')>{{ __('No files') }}</option>
+        <option value="1" @selected(request('file_filter')==='1')>{{ __('Has files') }}</option>
+    </select>
     <button type="submit" class="btn btn-secondary">{{ __('Filter') }}</button>
-    @if(request()->hasAny(['search','amendment_id']))<a href="{{ route('contracts.change-orders.index', $contract) }}" class="btn btn-secondary">{{ __('Clear') }}</a>@endif
+    @if(request()->hasAny(['search','amendment_id','file_filter']))<a href="{{ route('contracts.change-orders.index', $contract) }}" class="btn btn-secondary">{{ __('Clear') }}</a>@endif
 </form>
 
 <div class="card">
@@ -44,6 +49,7 @@
                     <th>{{ __('Amendment') }}</th>
                     <th style="text-align:right;width:60px">{{ __('Items') }}</th>
                     <th style="text-align:right;width:150px">{{ __('Value') }}</th>
+                    <th style="width:60px;text-align:center"></th>
                     <th style="width:60px"></th>
                 </tr>
             </thead>
@@ -67,6 +73,15 @@
                     <td style="text-align:right;color:#6b7280">{{ $co->items->count() }}</td>
                     <td style="text-align:right;font-weight:600;color:{{ $total >= 0 ? '#1d4ed8' : '#dc2626' }}">
                         {{ $total >= 0 ? '+' : '' }}{{ number_format($total, 2, ',', ' ') }}
+                    </td>
+                    <td style="text-align:center">
+                        @if($co->files_count)
+                            <a href="{{ route('change-orders.show', $co) }}#files"
+                               style="display:inline-flex;align-items:center;gap:.25rem;font-size:12px;color:#6b7280;text-decoration:none">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                                {{ $co->files_count }}
+                            </a>
+                        @endif
                     </td>
                     <td style="text-align:right">
                         <a href="{{ route('change-orders.show', $co) }}" class="btn btn-secondary btn-sm">{{ __('Detail') }}</a>

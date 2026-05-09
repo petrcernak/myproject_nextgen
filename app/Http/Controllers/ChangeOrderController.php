@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Amendment;
 use App\Models\ChangeOrder;
+use App\Models\Company;
 use App\Models\Contract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,17 +28,44 @@ class ChangeOrderController extends Controller
         $this->authorizeForContract($co->contract, $write);
     }
 
+    public function index(Request $request): View|RedirectResponse
+    {
+        $projectId = session('current_project_id');
+        if (!$projectId) {
+            return redirect()->route('projects.index')->with('error', __('Please select a project first.'));
+        }
+        $contracts  = Contract::where('project_id', $projectId)->orderBy('name')->get(['id', 'code', 'name', 'company_id', 'currency']);
+        $companies  = Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->orderBy('name')->pluck('name', 'id');
+        $currencies = $contracts->pluck('currency')->unique()->sort()->values();
+
+        $changeOrders = ChangeOrder::with(['contract.company', 'amendment', 'items'])
+            ->withCount('files')
+            ->whereIn('contract_id', $contracts->pluck('id'))
+            ->when($request->contract_id, fn ($q) => $q->where('contract_id', $request->contract_id))
+            ->when($request->company_id,  fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('company_id', $request->company_id)))
+            ->when($request->currency,    fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('currency', $request->currency)))
+            ->when($request->date_from,   fn ($q) => $q->where('date', '>=', $request->date_from))
+            ->when($request->date_to,     fn ($q) => $q->where('date', '<=', $request->date_to))
+            ->orderByDesc('date')
+            ->paginate(50)->withQueryString();
+
+        return view('change_orders.global', compact('changeOrders', 'contracts', 'companies', 'currencies'));
+    }
+
     public function indexForContract(Contract $contract, Request $request): View
     {
         $this->authorizeForContract($contract);
         $changeOrders = $contract->changeOrders()
             ->with(['amendment', 'items'])
+            ->withCount('files')
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
                 $q2->where('code', 'ilike', "%{$request->search}%")
                    ->orWhere('name', 'ilike', "%{$request->search}%");
             }))
             ->when($request->amendment_id === '0', fn ($q) => $q->whereNull('amendment_id'))
             ->when($request->amendment_id && $request->amendment_id !== '0', fn ($q) => $q->where('amendment_id', $request->amendment_id))
+            ->when($request->file_filter === '0', fn ($q) => $q->doesntHave('files'))
+            ->when($request->file_filter === '1', fn ($q) => $q->has('files'))
             ->orderByDesc('date')
             ->paginate(50)->withQueryString();
         $amendments  = $contract->amendments()->orderBy('code')->get(['id', 'code', 'name']);
@@ -79,9 +107,10 @@ class ChangeOrderController extends Controller
     public function show(ChangeOrder $changeOrder): View
     {
         $this->authorizeChangeOrder($changeOrder);
-        $changeOrder->load(['contract', 'amendment', 'items.contractItem']);
-        $canEdit = $this->currentUser()->canWrite($changeOrder->contract->project);
-        return view('change_orders.show', compact('changeOrder', 'canEdit'));
+        $changeOrder->load(['contract', 'amendment', 'sourceChangeRequest', 'items.contractItem', 'files.tags']);
+        $canEdit      = $this->currentUser()->canWrite($changeOrder->contract->project);
+        $existingTags = \App\Models\FileTag::where('id_group', $this->currentGroupId())->orderBy('name')->pluck('name');
+        return view('change_orders.show', compact('changeOrder', 'canEdit', 'existingTags'));
     }
 
     public function editContent(ChangeOrder $changeOrder): View|RedirectResponse

@@ -16,6 +16,7 @@
     </div>
     <div style="display:flex;gap:.5rem">
         @if($canEdit)
+            <a href="{{ route('budgets.adjustments.create', $budget) }}" class="btn btn-secondary">{{ __('+ New adjustment') }}</a>
             <a href="{{ route('budgets.content', $budget) }}" class="btn btn-primary">{{ __('Edit content') }}</a>
             <a href="{{ route('budgets.edit', $budget) }}" class="btn btn-secondary">{{ __('Settings') }}</a>
             <form method="POST" action="{{ route('budgets.destroy', $budget) }}" onsubmit="return confirm('{{ __('Really delete the entire budget?') }}')">
@@ -45,55 +46,120 @@
     <div class="card card-body" style="margin-bottom:1.5rem;font-size:13px;color:#374151">{{ $budget->note }}</div>
 @endif
 
-@forelse($budget->categories as $category)
-<div class="card" style="margin-bottom:1rem">
-    <div style="padding:.65rem 1rem;background:#f8fafc;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between">
-        <div>
-            @if($category->code)
-                <code style="color:#6b7280;margin-right:.5rem;font-size:12px">{{ $category->code }}</code>
-            @endif
-            <strong>{{ $category->name }}</strong>
-        </div>
-        <strong style="font-size:14px">{{ number_format($category->total, 2, ',', ' ') }}</strong>
-    </div>
+@php
+    $subtotalFn = function($cat) use (&$subtotalFn): array {
+        $amount     = 0.0;
+        $adjustment = 0.0;
+        $transfer   = 0.0;
+        foreach ($cat->items as $item) {
+            $amount     += (float) $item->amount;
+            $adjustment += (float) $item->adjustment;
+            $transfer   += (float) $item->transfer;
+        }
+        foreach ($cat->children as $child) {
+            $sub         = $subtotalFn($child);
+            $amount     += $sub['amount'];
+            $adjustment += $sub['adjustment'];
+            $transfer   += $sub['transfer'];
+        }
+        return [
+            'amount'     => $amount,
+            'adjustment' => $adjustment,
+            'transfer'   => $transfer,
+            'actual'     => $amount + $adjustment + $transfer,
+        ];
+    };
+    $rootCategories = $budget->categories->whereNull('parent_id');
 
-    @if($category->items->isNotEmpty())
-    <table>
-        <thead>
-            <tr>
-                <th style="width:110px">{{ __('Code') }}</th>
-                <th>{{ __('Description') }}</th>
-                <th style="text-align:right">{{ __('Amount') }} ({{ $budget->currency }})</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($category->items as $item)
-            <tr>
-                <td><code style="color:#6b7280;font-size:12px">{{ $item->code ?? '—' }}</code></td>
-                <td>{{ $item->description }}</td>
-                <td style="text-align:right">{{ number_format($item->amount, 2, ',', ' ') }}</td>
-            </tr>
-            @endforeach
-            <tr style="background:#f9fafb;font-weight:600">
-                <td colspan="2" style="text-align:right;color:#6b7280;font-weight:400;font-size:12px">{{ __('Category subtotal') }}</td>
-                <td style="text-align:right">{{ number_format($category->total, 2, ',', ' ') }}</td>
-            </tr>
-        </tbody>
-    </table>
-    @else
-        <div style="padding:.75rem 1rem;font-size:13px;color:#9ca3af;font-style:italic">{{ __('No items') }}</div>
-    @endif
+    $grandAmount     = 0.0;
+    $grandAdjustment = 0.0;
+    $grandTransfer   = 0.0;
+    foreach ($rootCategories as $rc) {
+        $sub              = $subtotalFn($rc);
+        $grandAmount     += $sub['amount'];
+        $grandAdjustment += $sub['adjustment'];
+        $grandTransfer   += $sub['transfer'];
+    }
+    $grandActual = $grandAmount + $grandAdjustment + $grandTransfer;
+@endphp
+
+@if($rootCategories->isNotEmpty())
+<div style="display:flex;justify-content:flex-end;gap:2rem;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;padding:.3rem 1rem .3rem 0;margin-bottom:.25rem">
+    <span style="min-width:100px;text-align:right">{{ __('Amount') }}</span>
+    <span style="min-width:100px;text-align:right">{{ __('Adjustment') }}</span>
+    <span style="min-width:100px;text-align:right">{{ __('Transfer') }}</span>
+    <span style="min-width:110px;text-align:right">{{ __('Actual Budget') }}</span>
 </div>
+@endif
+
+@forelse($rootCategories as $category)
+    @include('budgets._cat_show', [
+        'category'   => $category,
+        'budget'     => $budget,
+        'depth'      => 0,
+        'subtotalFn' => $subtotalFn,
+    ])
 @empty
     <div class="card"><div class="empty"><strong>{{ __('No categories') }}</strong>
         @if($canEdit)<p><a href="{{ route('budgets.content', $budget) }}">{{ __('Go to edit mode') }}</a> {{ __('and add categories.') }}</p>@endif
     </div></div>
 @endforelse
 
-@if($budget->categories->isNotEmpty())
-<div class="card card-body" style="display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:600">
+@if($rootCategories->isNotEmpty())
+<div class="card card-body" style="display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;margin-bottom:1.5rem">
     <span>{{ __('Total') }}</span>
-    <span>{{ number_format($budget->total, 2, ',', ' ') }}</span>
+    <div style="display:flex;gap:2rem;font-size:13px">
+        <span style="color:#6b7280;min-width:100px;text-align:right">{{ number_format($grandAmount, 2, ',', ' ') }}</span>
+        <span style="color:{{ $grandAdjustment > 0 ? '#1d4ed8' : ($grandAdjustment < 0 ? '#dc2626' : '#9ca3af') }};min-width:100px;text-align:right">
+            {{ $grandAdjustment != 0 ? ($grandAdjustment > 0 ? '+' : '').number_format($grandAdjustment, 2, ',', ' ') : '—' }}
+        </span>
+        <span style="color:{{ $grandTransfer > 0 ? '#1d4ed8' : ($grandTransfer < 0 ? '#dc2626' : '#9ca3af') }};min-width:100px;text-align:right">
+            {{ $grandTransfer != 0 ? ($grandTransfer > 0 ? '+' : '').number_format($grandTransfer, 2, ',', ' ') : '—' }}
+        </span>
+        <span style="min-width:110px;text-align:right">{{ number_format($grandActual, 2, ',', ' ') }}</span>
+    </div>
 </div>
 @endif
+
+{{-- Adjustments section --}}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+    <h2 style="font-size:15px;font-weight:700;margin:0">{{ __('Adjustments') }}</h2>
+    @if($canEdit)
+        <a href="{{ route('budgets.adjustments.create', $budget) }}" class="btn btn-secondary" style="font-size:12px">{{ __('+ New') }}</a>
+    @endif
+</div>
+
+@if($budget->adjustments->isNotEmpty())
+<div class="card" style="margin-bottom:1.5rem">
+    <table style="font-size:12px">
+        <thead>
+            <tr>
+                <th>{{ __('Date') }}</th>
+                <th>{{ __('Description') }}</th>
+                <th style="text-align:right;width:160px">{{ __('Total') }} ({{ $budget->currency }})</th>
+                <th style="width:100px"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($budget->adjustments->sortByDesc('date') as $adj)
+            <tr>
+                <td style="white-space:nowrap;color:#6b7280">{{ $adj->date->format('d.m.Y') }}</td>
+                <td><a href="{{ route('budget-adjustments.show', $adj) }}">{{ $adj->description }}</a></td>
+                <td style="text-align:right;font-weight:600;color:{{ $adj->total > 0 ? '#1d4ed8' : ($adj->total < 0 ? '#dc2626' : '#9ca3af') }}">
+                    {{ ($adj->total > 0 ? '+' : '') . number_format($adj->total, 2, ',', ' ') }}
+                </td>
+                <td style="text-align:right">
+                    @if($canEdit)
+                    <a href="{{ route('budget-adjustments.edit', $adj) }}" style="font-size:11px;color:#6b7280">{{ __('Edit') }}</a>
+                    @endif
+                </td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+</div>
+@else
+<div class="card card-body" style="font-size:13px;color:#9ca3af;margin-bottom:1.5rem">{{ __('No adjustments yet.') }}</div>
+@endif
+
 @endsection

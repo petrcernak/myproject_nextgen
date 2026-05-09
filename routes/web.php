@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AmendmentController;
+use App\Http\Controllers\ContractCategoryController;
+use App\Http\Controllers\RetentionReleaseController;
+use App\Http\Controllers\RetentionBankGuaranteeController;
 use App\Http\Controllers\AmendmentItemController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChangeOrderController;
@@ -53,11 +56,24 @@ Route::middleware('auth')->group(function () {
     Route::resource('projects', ProjectController::class);
     Route::resource('projects.contracts', ContractController::class)->shallow();
     Route::get('contracts', [ContractController::class, 'index'])->name('contracts.index');
+    Route::get('contracts-underbilled', [ContractController::class, 'underbilled'])->name('contracts.underbilled');
+    Route::get('contracts-overbilled',  [ContractController::class, 'overbilled'])->name('contracts.overbilled');
+    Route::get('contracts/{contract}/files', [ContractController::class, 'showFiles'])->name('contracts.files');
+    Route::get('contracts/{contract}/retention', [ContractController::class, 'showRetention'])->name('contracts.retention');
     Route::get('contracts/{contract}/content', [ContractController::class, 'editContent'])->name('contracts.content');
+    Route::post('contracts/{contract}/categories',          [ContractCategoryController::class, 'store'])->name('contracts.categories.store');
+    Route::get('contract-categories/{category}/edit',       [ContractCategoryController::class, 'edit'])->name('contract-categories.edit');
+    Route::put('contract-categories/{category}',            [ContractCategoryController::class, 'update'])->name('contract-categories.update');
+    Route::delete('contract-categories/{category}',         [ContractCategoryController::class, 'destroy'])->name('contract-categories.destroy');
     Route::post('contracts/{contract}/items', [\App\Http\Controllers\ContractItemController::class, 'store'])->name('contracts.items.store');
+    Route::get('contract-items/{item}', [\App\Http\Controllers\ContractItemController::class, 'show'])->name('contract-items.show');
     Route::get('contract-items/{item}/edit', [\App\Http\Controllers\ContractItemController::class, 'edit'])->name('contract-items.edit');
     Route::put('contract-items/{item}', [\App\Http\Controllers\ContractItemController::class, 'update'])->name('contract-items.update');
     Route::delete('contract-items/{item}', [\App\Http\Controllers\ContractItemController::class, 'destroy'])->name('contract-items.destroy');
+
+    Route::get('amendments', [AmendmentController::class, 'index'])->name('amendments.index');
+    Route::get('change-orders', [ChangeOrderController::class, 'index'])->name('change-orders.index');
+    Route::get('change-requests', [ChangeRequestController::class, 'index'])->name('change-requests.index');
 
     // Amendments
     Route::get('contracts/{contract}/amendments', [AmendmentController::class, 'indexForContract'])->name('contracts.amendments.index');
@@ -115,6 +131,8 @@ Route::middleware('auth')->group(function () {
     Route::put('change-requests/{changeRequest}', [ChangeRequestController::class, 'update'])->name('change-requests.update');
     Route::delete('change-requests/{changeRequest}', [ChangeRequestController::class, 'destroy'])->name('change-requests.destroy');
 
+    Route::post('change-requests/{changeRequest}/convert', [ChangeRequestController::class, 'convert'])->name('change-requests.convert');
+
     // Change Request Items
     Route::post('change-requests/{changeRequest}/items', [ChangeRequestItemController::class, 'store'])->name('change-requests.items.store');
     Route::delete('cr-items/{item}', [ChangeRequestItemController::class, 'destroy'])->name('cr-items.destroy');
@@ -129,14 +147,41 @@ Route::middleware('auth')->group(function () {
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::post('invoices/{invoice}/items', [\App\Http\Controllers\InvoiceItemController::class, 'store'])->name('invoices.items.store');
     Route::delete('invoice-items/{item}', [\App\Http\Controllers\InvoiceItemController::class, 'destroy'])->name('invoice-items.destroy');
+    Route::post('invoices/{invoice}/deductions', [\App\Http\Controllers\InvoiceDeductionController::class, 'store'])->name('invoices.deductions.store');
+    Route::delete('invoice-deductions/{deduction}', [\App\Http\Controllers\InvoiceDeductionController::class, 'destroy'])->name('invoice-deductions.destroy');
+
+    // Retention releases
+    Route::post('contracts/{contract}/retention-releases',           [RetentionReleaseController::class, 'store'])->name('contracts.retention-releases.store');
+    Route::delete('retention-releases/{retentionRelease}',           [RetentionReleaseController::class, 'destroy'])->name('retention-releases.destroy');
+    Route::post('retention-releases/{retentionRelease}/files',       [\App\Http\Controllers\FileController::class, 'storeForRetentionRelease'])->name('retention-releases.files.store');
+
+    // Retention bank guarantees
+    Route::post('contracts/{contract}/retention-bank-guarantees',    [RetentionBankGuaranteeController::class, 'store'])->name('contracts.retention-bank-guarantees.store');
+    Route::delete('retention-bank-guarantees/{retentionBankGuarantee}', [RetentionBankGuaranteeController::class, 'destroy'])->name('retention-bank-guarantees.destroy');
+    Route::post('retention-bank-guarantees/{retentionBankGuarantee}/files', [\App\Http\Controllers\FileController::class, 'storeForRetentionBankGuarantee'])->name('retention-bank-guarantees.files.store');
+
+    Route::post('contracts/{contract}/files',        [\App\Http\Controllers\FileController::class, 'storeForContract'])->name('contracts.files.store');
+    Route::post('amendments/{amendment}/files',      [\App\Http\Controllers\FileController::class, 'storeForAmendment'])->name('amendments.files.store');
+    Route::post('change-orders/{changeOrder}/files', [\App\Http\Controllers\FileController::class, 'storeForChangeOrder'])->name('change-orders.files.store');
+    Route::post('invoices/{invoice}/files',          [\App\Http\Controllers\FileController::class, 'storeForInvoice'])->name('invoices.files.store');
+    Route::get('files',              [\App\Http\Controllers\FileController::class, 'indexGlobal'])->name('files.index');
+    Route::get('files/{file}/view',  [\App\Http\Controllers\FileController::class, 'show'])->name('files.show');
+    Route::delete('files/{file}',    [\App\Http\Controllers\FileController::class, 'destroy'])->name('files.destroy');
 
     Route::resource('companies', CompanyController::class);
     Route::resource('groups', GroupController::class);
+    Route::get('activity-log', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-log.index');
     Route::resource('users', \App\Http\Controllers\UserController::class)->except(['show']);
     Route::get('users/{user}/rights', [\App\Http\Controllers\UserController::class, 'editRights'])->name('users.rights');
     Route::post('users/{user}/rights', [\App\Http\Controllers\UserController::class, 'updateRights'])->name('users.rights.update');
 
     // Budgets
+    Route::get('budgets/{budget}/adjustments/create', [\App\Http\Controllers\BudgetAdjustmentController::class, 'create'])->name('budgets.adjustments.create');
+    Route::post('budgets/{budget}/adjustments',       [\App\Http\Controllers\BudgetAdjustmentController::class, 'store'])->name('budgets.adjustments.store');
+    Route::get('budget-adjustments/{adjustment}',     [\App\Http\Controllers\BudgetAdjustmentController::class, 'show'])->name('budget-adjustments.show');
+    Route::get('budget-adjustments/{adjustment}/edit',[\App\Http\Controllers\BudgetAdjustmentController::class, 'edit'])->name('budget-adjustments.edit');
+    Route::put('budget-adjustments/{adjustment}',     [\App\Http\Controllers\BudgetAdjustmentController::class, 'update'])->name('budget-adjustments.update');
+    Route::delete('budget-adjustments/{adjustment}',  [\App\Http\Controllers\BudgetAdjustmentController::class, 'destroy'])->name('budget-adjustments.destroy');
     Route::get('budgets', [\App\Http\Controllers\BudgetController::class, 'index'])->name('budgets.index');
     Route::get('projects/{project}/budgets/create', [\App\Http\Controllers\BudgetController::class, 'create'])->name('projects.budgets.create');
     Route::post('projects/{project}/budgets', [\App\Http\Controllers\BudgetController::class, 'store'])->name('projects.budgets.store');
@@ -148,6 +193,8 @@ Route::middleware('auth')->group(function () {
     Route::post('budgets/{budget}/categories', [\App\Http\Controllers\BudgetController::class, 'storeCategory'])->name('budgets.categories.store');
     Route::delete('budget-categories/{category}', [\App\Http\Controllers\BudgetController::class, 'destroyCategory'])->name('budget-categories.destroy');
     Route::post('budget-categories/{category}/items', [\App\Http\Controllers\BudgetController::class, 'storeItem'])->name('budget-categories.items.store');
+    Route::get('budget-categories/{category}/edit', [\App\Http\Controllers\BudgetController::class, 'editCategory'])->name('budget-categories.edit');
+    Route::put('budget-categories/{category}', [\App\Http\Controllers\BudgetController::class, 'updateCategory'])->name('budget-categories.update');
     Route::get('budget-items/{item}/edit', [\App\Http\Controllers\BudgetController::class, 'editItem'])->name('budget-items.edit');
     Route::put('budget-items/{item}', [\App\Http\Controllers\BudgetController::class, 'updateItem'])->name('budget-items.update');
     Route::delete('budget-items/{item}', [\App\Http\Controllers\BudgetController::class, 'destroyItem'])->name('budget-items.destroy');

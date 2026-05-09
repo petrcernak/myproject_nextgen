@@ -39,7 +39,7 @@ class ContractController extends Controller
             Contract::where('project_id', $projectId)->whereNotNull('company_id')->pluck('company_id')
         )->orderBy('name')->pluck('name', 'id');
 
-        $contracts = Contract::with(['company'])
+        $contracts = Contract::with(['company'])->withCount('files')
             ->where('project_id', $projectId)
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
                 $q2->where('name', 'ilike', "%{$request->search}%")
@@ -48,6 +48,8 @@ class ContractController extends Controller
             ->when($request->direction,  fn ($q) => $q->where('direction', $request->direction))
             ->when($request->currency,   fn ($q) => $q->where('currency', $request->currency))
             ->when($request->company_id, fn ($q) => $q->where('company_id', $request->company_id))
+            ->when($request->file_filter === '0', fn ($q) => $q->doesntHave('files'))
+            ->when($request->file_filter === '1', fn ($q) => $q->has('files'))
             ->orderByDesc('created_at')
             ->paginate(50)
             ->withQueryString();
@@ -55,28 +57,79 @@ class ContractController extends Controller
         return view('contracts.index', compact('contracts', 'currencies', 'companies'));
     }
 
-    public function show(Contract $contract): View
+    public function show(Contract $contract): View|RedirectResponse
     {
         $this->authorizeContract($contract);
+        if ($contract->project_id != session('current_project_id')) {
+            return redirect()->route('contracts.index')
+                ->with('info', __('Project switched — showing contracts for the current project.'));
+        }
         $contract->load([
-            'project', 'company', 'items.invoiceItems', 'items.changeOrderItems.changeOrder', 'items.amendmentItems', 'invoices',
+            'project', 'company',
+            'categories.children.children.items',
+            'categories.children.items',
+            'categories.items',
+            'items.invoiceItems', 'items.changeOrderItems.changeOrder', 'items.amendmentItems', 'invoices',
             'amendments.items.contractItem', 'amendments.changeOrders.items.contractItem',
             'standaloneChangeOrders.items.contractItem',
             'changeRequests.items.latestRevision',
             'anticipateds.items',
+            'retentionReleases',
         ]);
+        $contract->loadCount('files');
         $canEdit = $this->currentUser()->canWrite($contract->project);
         return view('contracts.show', compact('contract', 'canEdit'));
+    }
+
+    public function showFiles(Contract $contract): View|RedirectResponse
+    {
+        $this->authorizeContract($contract);
+        if ($contract->project_id != session('current_project_id')) {
+            return redirect()->route('contracts.index')
+                ->with('info', __('Project switched — showing contracts for the current project.'));
+        }
+        $contract->load(['project', 'files.tags', 'files.uploader']);
+        $canEdit      = $this->currentUser()->canWrite($contract->project);
+        $existingTags = \App\Models\FileTag::where('id_group', $this->currentGroupId())
+            ->orderBy('name')->pluck('name');
+        return view('contracts.files', compact('contract', 'canEdit', 'existingTags'));
+    }
+
+    public function showRetention(Contract $contract): View|RedirectResponse
+    {
+        $this->authorizeContract($contract);
+        if ($contract->project_id != session('current_project_id')) {
+            return redirect()->route('contracts.index')
+                ->with('info', __('Project switched — showing contracts for the current project.'));
+        }
+        $contract->load([
+            'project',
+            'retentionReleases.files.tags',
+            'retentionBankGuarantees.files.tags',
+        ]);
+        $canEdit      = $this->currentUser()->canWrite($contract->project);
+        $existingTags = \App\Models\FileTag::where('id_group', $this->currentGroupId())
+            ->orderBy('name')->pluck('name');
+        return view('contracts.retention', compact('contract', 'canEdit', 'existingTags'));
     }
 
     public function editContent(Contract $contract): View|RedirectResponse
     {
         $this->authorizeContract($contract);
+        if ($contract->project_id != session('current_project_id')) {
+            return redirect()->route('contracts.index')
+                ->with('info', __('Project switched — showing contracts for the current project.'));
+        }
         if (!$this->currentUser()->canWrite($contract->project)) {
             return redirect()->route('contracts.show', $contract)
                 ->with('error', __('You do not have permission to edit contract content.'));
         }
-        $contract->load(['items']);
+        $contract->load([
+            'categories.children.children.items',
+            'categories.children.items',
+            'categories.items',
+            'items',
+        ]);
         return view('contracts.content', compact('contract'));
     }
 
@@ -139,6 +192,62 @@ class ContractController extends Controller
         $contract->update($data);
 
         return redirect()->route('contracts.show', $contract)->with('success', __('Contract saved.'));
+    }
+
+    private function contractsWithStats(int $projectId, \Illuminate\Http\Request $request): \Illuminate\Support\Collection
+    {
+        return Contract::with(['company', 'items.invoiceItems', 'items.changeOrderItems', 'items.amendmentItems'])
+            ->where('project_id', $projectId)
+            ->when($request->company_id, fn ($q) => $q->where('company_id', $request->company_id))
+            ->when($request->currency,   fn ($q) => $q->where('currency', $request->currency))
+            ->when($request->date_from,  fn ($q) => $q->where('date', '>=', $request->date_from))
+            ->when($request->date_to,    fn ($q) => $q->where('date', '<=', $request->date_to))
+            ->orderBy('code')
+            ->get()
+            ->map(function (Contract $contract) {
+                $revisedTotal = $contract->items->sum('amount')
+                    + $contract->items->flatMap->changeOrderItems->sum('amount')
+                    + $contract->items->flatMap->amendmentItems->sum('amount');
+                $invoiced = $contract->items->flatMap->invoiceItems->sum('amount');
+
+                $contract->stat_revised_total = $revisedTotal;
+                $contract->stat_invoiced      = $invoiced;
+                $contract->stat_diff          = $invoiced - $revisedTotal;
+                $contract->stat_pct           = $revisedTotal != 0 ? round($invoiced / $revisedTotal * 100) : 0;
+                $contract->stat_overbilled_items = $contract->items->filter(function ($item) {
+                    $eff  = $item->amount + $item->changeOrderItems->sum('amount') + $item->amendmentItems->sum('amount');
+                    return $eff > 0 && $item->invoiceItems->sum('amount') > $eff;
+                });
+                return $contract;
+            });
+    }
+
+    public function underbilled(\Illuminate\Http\Request $request): View|RedirectResponse
+    {
+        $projectId = session('current_project_id');
+        if (!$projectId) {
+            return redirect()->route('projects.index')->with('error', __('Please select a project first.'));
+        }
+        $companies  = Company::whereIn('id', Contract::where('project_id', $projectId)->whereNotNull('company_id')->pluck('company_id'))->orderBy('name')->pluck('name', 'id');
+        $currencies = Contract::where('project_id', $projectId)->distinct()->orderBy('currency')->pluck('currency');
+        $contracts  = $this->contractsWithStats($projectId, $request)
+            ->filter(fn ($c) => $c->stat_revised_total > 0 && $c->stat_invoiced < $c->stat_revised_total)
+            ->values();
+        return view('contracts.underbilled', compact('contracts', 'companies', 'currencies'));
+    }
+
+    public function overbilled(\Illuminate\Http\Request $request): View|RedirectResponse
+    {
+        $projectId = session('current_project_id');
+        if (!$projectId) {
+            return redirect()->route('projects.index')->with('error', __('Please select a project first.'));
+        }
+        $companies  = Company::whereIn('id', Contract::where('project_id', $projectId)->whereNotNull('company_id')->pluck('company_id'))->orderBy('name')->pluck('name', 'id');
+        $currencies = Contract::where('project_id', $projectId)->distinct()->orderBy('currency')->pluck('currency');
+        $contracts  = $this->contractsWithStats($projectId, $request)
+            ->filter(fn ($c) => $c->stat_invoiced > $c->stat_revised_total || $c->stat_overbilled_items->isNotEmpty())
+            ->values();
+        return view('contracts.overbilled', compact('contracts', 'companies', 'currencies'));
     }
 
     public function destroy(Contract $contract): RedirectResponse

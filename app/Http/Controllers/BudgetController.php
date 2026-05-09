@@ -51,10 +51,20 @@ class BudgetController extends Controller
         return view('budgets.index', compact('budgets'));
     }
 
-    public function show(Budget $budget): View
+    public function show(Budget $budget): View|RedirectResponse
     {
         $this->authorizeBudget($budget);
-        $budget->load(['project', 'categories.items']);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')
+                ->with('info', __('Project switched — showing budgets for the current project.'));
+        }
+        $budget->load([
+            'project',
+            'categories.children.children.items.adjustmentItems',
+            'categories.children.items.adjustmentItems',
+            'categories.items.adjustmentItems',
+            'adjustments.items',
+        ]);
         $canEdit = $this->currentUser()->canWrite($budget->project);
         return view('budgets.show', compact('budget', 'canEdit'));
     }
@@ -62,11 +72,19 @@ class BudgetController extends Controller
     public function editContent(Budget $budget): View|RedirectResponse
     {
         $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')
+                ->with('info', __('Project switched — showing budgets for the current project.'));
+        }
         if (!$this->currentUser()->canWrite($budget->project)) {
             return redirect()->route('budgets.show', $budget)
                 ->with('error', __('You do not have permission to edit budget content.'));
         }
-        $budget->load(['categories.items']);
+        $budget->load([
+            'categories.children.children.items',
+            'categories.children.items',
+            'categories.items',
+        ]);
         return view('budgets.content', compact('budget'));
     }
 
@@ -132,8 +150,9 @@ class BudgetController extends Controller
     {
         $this->authorizeBudget($budget, requireWrite: true);
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['nullable', 'string', 'max:50'],
+            'name'      => ['required', 'string', 'max:255'],
+            'code'      => ['nullable', 'string', 'max:50'],
+            'parent_id' => ['nullable', 'integer', 'exists:budget_categories,id'],
         ]);
 
         $data['budget_id'] = $budget->id;
@@ -148,9 +167,33 @@ class BudgetController extends Controller
     {
         $this->authorizeCategory($category, requireWrite: true);
         $budget = $category->budget;
+        abort_if(
+            $category->items()->exists() || $category->children()->exists(),
+            422,
+            __('Cannot delete a category that contains items or subcategories.')
+        );
         $category->delete();
 
-        return redirect()->route('budgets.show', $budget)->with('success', __('Category deleted.'));
+        return redirect()->route('budgets.content', $budget)->with('success', __('Category deleted.'));
+    }
+
+    public function editCategory(BudgetCategory $category): View
+    {
+        $this->authorizeCategory($category, requireWrite: true);
+        return view('budget_categories.edit', ['category' => $category, 'budget' => $category->budget]);
+    }
+
+    public function updateCategory(Request $request, BudgetCategory $category): RedirectResponse
+    {
+        $this->authorizeCategory($category, requireWrite: true);
+        $data = $request->validate([
+            'code' => ['nullable', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $category->update($data);
+
+        return redirect()->route('budgets.content', $category->budget)->with('success', __('Category saved.'));
     }
 
     // --- Items ---

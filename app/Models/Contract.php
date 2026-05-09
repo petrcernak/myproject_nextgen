@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use App\Models\RetentionRelease;
+use App\Models\RetentionBankGuarantee;
 
 class Contract extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'code', 'name', 'project_id', 'company_id',
         'direction', 'currency', 'date', 'description', 'maturity',
@@ -32,6 +38,11 @@ class Contract extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ContractItem::class)->orderBy('sort');
+    }
+
+    public function categories(): HasMany
+    {
+        return $this->hasMany(ContractCategory::class)->orderBy('sort');
     }
 
     public function invoices(): HasMany
@@ -103,8 +114,72 @@ class Contract extends Model
         return round($amount * ($this->retention_long ?? 0) / 100, 2);
     }
 
+    public function retentionReleases(): HasMany
+    {
+        return $this->hasMany(RetentionRelease::class)->orderBy('release_date');
+    }
+
+    public function retentionBankGuarantees(): HasMany
+    {
+        return $this->hasMany(RetentionBankGuarantee::class)->orderBy('valid_from');
+    }
+
+    private function invoicedGross(): float
+    {
+        return (float) $this->invoices()
+            ->where('is_advance', false)
+            ->join('invoice_items', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->sum('invoice_items.amount');
+    }
+
+    public function getRetentionHeldAttribute(): float
+    {
+        $rate = ($this->retention_short ?? 0) + ($this->retention_long ?? 0);
+        if (!$rate) return 0.0;
+        return round($this->invoicedGross() * $rate / 100, 2);
+    }
+
+    public function getRetentionShortHeldAttribute(): float
+    {
+        $rate = $this->retention_short ?? 0;
+        if (!$rate) return 0.0;
+        return round($this->invoicedGross() * $rate / 100, 2);
+    }
+
+    public function getRetentionShortReleasedAttribute(): float
+    {
+        return (float) $this->retentionReleases()->where('type', 'short')->sum('amount');
+    }
+
+    public function getRetentionShortRemainingAttribute(): float
+    {
+        return max(0.0, $this->retention_short_held - $this->retention_short_released);
+    }
+
+    public function getRetentionLongHeldAttribute(): float
+    {
+        $rate = $this->retention_long ?? 0;
+        if (!$rate) return 0.0;
+        return round($this->invoicedGross() * $rate / 100, 2);
+    }
+
+    public function getRetentionLongReleasedAttribute(): float
+    {
+        return (float) $this->retentionReleases()->where('type', 'long')->sum('amount');
+    }
+
+    public function getRetentionLongRemainingAttribute(): float
+    {
+        return max(0.0, $this->retention_long_held - $this->retention_long_released);
+    }
+
     public function isDeletable(): bool
     {
         return $this->invoices()->doesntExist();
+    }
+
+    public function files(): MorphMany
+    {
+        return $this->morphMany(File::class, 'fileable')->orderByDesc('created_at');
     }
 }

@@ -11,19 +11,39 @@
 <div class="page-header">
     <div>
         <h1>{{ $changeRequest->name }} <code style="font-size:.8em;color:#6b7280">{{ $changeRequest->code }}</code></h1>
-        <div style="font-size:13px;color:#6b7280;margin-top:.2rem">
+        <div style="font-size:13px;color:#6b7280;margin-top:.2rem;display:flex;align-items:center;gap:.5rem">
             {{ __('Change request') }} · {{ $changeRequest->date?->format('d.m.Y') }}
             @if($changeRequest->note) · {{ $changeRequest->note }}@endif
+            <span class="badge {{ $changeRequest->status_badge_class }}">{{ $changeRequest->status_label }}</span>
         </div>
     </div>
     <div style="display:flex;gap:.5rem">
         @if($canEdit)
+            @if(!in_array($changeRequest->status, ['converted', 'rejected']))
+                <form method="POST" action="{{ route('change-requests.convert', $changeRequest) }}"
+                      onsubmit="return confirm('{{ __('Convert this change request to a change order?') }}')">
+                    @csrf
+                    <button class="btn btn-secondary">{{ __('Convert to CO') }}</button>
+                </form>
+            @else
+                @if($changeRequest->convertedChangeOrder)
+                    <a href="{{ route('change-orders.show', $changeRequest->convertedChangeOrder) }}" class="btn btn-secondary">
+                        {{ __('→ CO') }}: {{ $changeRequest->convertedChangeOrder->code }}
+                    </a>
+                @endif
+            @endif
             <a href="{{ route('change-requests.content', $changeRequest) }}" class="btn btn-primary">{{ __('Edit items') }}</a>
             <a href="{{ route('change-requests.edit', $changeRequest) }}" class="btn btn-secondary">{{ __('Settings') }}</a>
             <form method="POST" action="{{ route('change-requests.destroy', $changeRequest) }}" onsubmit="return confirm('{{ __('Really delete?') }}')">
                 @csrf @method('DELETE')
                 <button class="btn btn-danger">{{ __('Delete') }}</button>
             </form>
+        @else
+            @if($changeRequest->status === 'converted' && $changeRequest->convertedChangeOrder)
+                <a href="{{ route('change-orders.show', $changeRequest->convertedChangeOrder) }}" class="btn btn-secondary">
+                    {{ __('→ CO') }}: {{ $changeRequest->convertedChangeOrder->code }}
+                </a>
+            @endif
         @endif
     </div>
 </div>
@@ -40,10 +60,16 @@
         <div style="font-size:1.4rem;font-weight:700">{{ number_format($changeRequest->total_pm, 2, ',', ' ') }} {{ $changeRequest->contract->currency }}</div>
         <div style="font-size:12px;color:#6b7280;margin-top:.3rem">{{ __('latest revision per item') }}</div>
     </div>
-    <div class="card card-body" style="border:2px solid #2563eb">
-        <div style="font-size:11px;color:#2563eb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">{{ __('Report total') }}</div>
-        <div style="font-size:1.4rem;font-weight:700;color:#2563eb">{{ number_format($changeRequest->total_report, 2, ',', ' ') }} {{ $changeRequest->contract->currency }}</div>
-        <div style="font-size:12px;color:#2563eb;margin-top:.3rem">{{ __('Used in contract reporting') }}</div>
+    <div class="card card-body" style="border:2px solid #ca8a04">
+        <div style="font-size:11px;color:#ca8a04;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">{{ __('Assumed') }}</div>
+        <div style="font-size:1.4rem;font-weight:700;color:#ca8a04">{{ number_format($changeRequest->total_report, 2, ',', ' ') }} {{ $changeRequest->contract->currency }}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:.3rem">
+            @if($changeRequest->countsInReport())
+                <span style="color:#2563eb;font-weight:600">{{ __('Counts in report') }}</span>
+            @else
+                <span style="color:#9ca3af">{{ __('Not counted') }} ({{ $changeRequest->status_label }})</span>
+            @endif
+        </div>
     </div>
 </div>
 
@@ -83,7 +109,7 @@
                 <th style="width:110px">{{ __('Date') }}</th>
                 <th style="text-align:right;width:150px">{{ __('Supplier') }}</th>
                 <th style="text-align:right;width:150px">{{ __('PM') }}</th>
-                <th style="text-align:right;width:150px;background:#eff6ff">{{ __('Report') }}</th>
+                <th style="text-align:right;width:150px;background:#fef9c3">{{ __('Assumed') }}</th>
                 <th>{{ __('Note') }}</th>
             </tr>
         </thead>
@@ -103,7 +129,7 @@
                 <td style="text-align:right;color:{{ $isLatest ? 'inherit' : '#6b7280' }}">
                     {{ number_format($rev->amount_pm, 2, ',', ' ') }}
                 </td>
-                <td style="text-align:right;background:#eff6ff;color:{{ $isLatest ? '#2563eb' : '#6b7280' }}">
+                <td style="text-align:right;background:#fef9c3;color:{{ $isLatest ? '#2563eb' : '#6b7280' }}">
                     {{ number_format($rev->amount_report, 2, ',', ' ') }}
                 </td>
                 <td style="color:#6b7280">{{ $rev->note }}</td>
@@ -127,7 +153,7 @@
                 <td style="text-align:right;color:{{ $diffPm >= 0 ? '#1d4ed8' : '#dc2626' }}">
                     {{ $diffPm >= 0 ? '+' : '' }}{{ number_format($diffPm, 2, ',', ' ') }}
                 </td>
-                <td style="text-align:right;background:#eff6ff;color:{{ $diffR >= 0 ? '#1d4ed8' : '#dc2626' }}">
+                <td style="text-align:right;background:#fef9c3;color:{{ $diffR >= 0 ? '#1d4ed8' : '#dc2626' }}">
                     {{ $diffR >= 0 ? '+' : '' }}{{ number_format($diffR, 2, ',', ' ') }}
                 </td>
                 <td></td>

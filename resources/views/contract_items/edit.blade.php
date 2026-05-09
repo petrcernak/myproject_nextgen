@@ -33,6 +33,18 @@
             <input type="number" name="amount" step="0.01" value="{{ old('amount', $item->amount) }}" required>
         </div>
 
+        <div class="form-group">
+            <label>{{ __('Category') }} *</label>
+            <select name="contract_category_id" required>
+                <option value="">—</option>
+                @foreach($contract->categories as $cat)
+                    <option value="{{ $cat->id }}" @selected(old('contract_category_id', $item->contract_category_id) == $cat->id)>
+                        {{ $cat->code ? $cat->code.' — ' : '' }}{{ $cat->name }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
             <a href="{{ route('contracts.show', $contract) }}" class="btn btn-secondary">{{ __('Cancel') }}</a>

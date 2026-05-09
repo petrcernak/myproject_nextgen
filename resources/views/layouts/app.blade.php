@@ -37,8 +37,8 @@
         .card { background: #fff; border-radius: 8px; border: 1px solid #e5e7eb; }
         .card-body { padding: 1.25rem; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; background: #f9fafb; padding: 0.6rem 1rem; border-bottom: 1px solid #e5e7eb; }
-        td { padding: 0.65rem 1rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+        th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; background: #f9fafb; padding: 0.25rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+        td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: #fafafa; }
 
@@ -56,6 +56,7 @@
         .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 13px; }
         .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
         .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
 
         /* Badges */
         .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 99px; font-size: 11px; font-weight: 600; }
@@ -72,6 +73,10 @@
         /* Empty state */
         .empty { text-align: center; padding: 3rem 1rem; color: #9ca3af; }
         .empty p { margin-top: 0.5rem; font-size: 13px; }
+        .hidden-form { display: none !important; }
+        details.cat-card > summary { border-radius:4px 4px 0 0; }
+        details.cat-card[open] > summary .cat-caret { transform: rotate(90deg); }
+        details.cat-card > summary::-webkit-details-marker { display:none; }
 
         /* Project switcher */
         .project-switcher { position: relative; }
@@ -96,6 +101,16 @@
         .lang-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: .15rem .4rem; border-radius: 3px; font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: .03em; }
         .lang-btn:hover { border-color: #94a3b8; color: #e2e8f0; }
         .lang-btn.active { background: #475569; color: #fff; border-color: #475569; }
+        /* Nav dropdown */
+        .nav-item { position: relative; }
+        .nav-item > a, .nav-item > button { color: #94a3b8; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 13px; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: .25rem; }
+        .nav-item > a:hover, .nav-item > button:hover, .nav-item > a.active, .nav-item > button.active { color: #fff; background: #334155; text-decoration: none; }
+        .nav-dd { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: #1e293b; border: 1px solid #334155; border-radius: 7px; min-width: 200px; z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,.4); padding: .25rem; }
+        .nav-dd.open { display: block; }
+        .nav-dd a { display: block; color: #cbd5e1; padding: .4rem .6rem; border-radius: 4px; font-size: 13px; text-decoration: none; white-space: nowrap; }
+        .nav-dd a:hover { background: #334155; color: #fff; }
+        .nav-dd a.active { background: #1d4ed8; color: #fff; }
+        .nav-dd-sep { border-top: 1px solid #334155; margin: .25rem 0; }
     </style>
 </head>
 <body>
@@ -165,13 +180,32 @@
     </div>
 
     <nav>
-        <a href="{{ route('contracts.index') }}" class="{{ request()->routeIs('contracts.*') ? 'active' : '' }}">{{ __('Contracts') }}</a>
+        @php
+            $contractsActive = request()->routeIs('contracts.*','amendments.*','change-orders.*','change-requests.*');
+        @endphp
+        <div class="nav-item">
+            <button onclick="toggleNavDd('contractsDd')" class="{{ $contractsActive ? 'active' : '' }}">
+                {{ __('Contracts') }} <span style="opacity:.5;font-size:10px">▾</span>
+            </button>
+            <div class="nav-dd" id="contractsDd">
+                <a href="{{ route('contracts.index') }}" class="{{ request()->routeIs('contracts.index') ? 'active' : '' }}">{{ __('Contracts') }}</a>
+                <div class="nav-dd-sep"></div>
+                <a href="{{ route('change-orders.index') }}" class="{{ request()->routeIs('change-orders.*') ? 'active' : '' }}">{{ __('Change orders') }}</a>
+                <a href="{{ route('amendments.index') }}" class="{{ request()->routeIs('amendments.*') ? 'active' : '' }}">{{ __('Amendments') }}</a>
+                <a href="{{ route('change-requests.index') }}" class="{{ request()->routeIs('change-requests.*') ? 'active' : '' }}">{{ __('Change requests') }}</a>
+                <div class="nav-dd-sep"></div>
+                <a href="{{ route('contracts.underbilled') }}" class="{{ request()->routeIs('contracts.underbilled') ? 'active' : '' }}">{{ __('Underbilled') }}</a>
+                <a href="{{ route('contracts.overbilled') }}" class="{{ request()->routeIs('contracts.overbilled') ? 'active' : '' }}">{{ __('Overbilled') }}</a>
+            </div>
+        </div>
         <a href="{{ route('invoices.index') }}" class="{{ request()->routeIs('invoices.*') ? 'active' : '' }}">{{ __('Invoices') }}</a>
         <a href="{{ route('budgets.index') }}" class="{{ request()->routeIs('budgets.*') ? 'active' : '' }}">{{ __('Budgets') }}</a>
+        <a href="{{ route('files.index') }}" class="{{ request()->routeIs('files.index') ? 'active' : '' }}">{{ __('Files') }}</a>
         <a href="{{ route('companies.index') }}" class="{{ request()->routeIs('companies.*') ? 'active' : '' }}">{{ __('Companies') }}</a>
         <a href="{{ route('projects.index') }}" class="{{ request()->routeIs('projects.*') ? 'active' : '' }}">{{ __('Projects') }}</a>
         @if(auth()->user()->isGroupAdmin())
             <a href="{{ route('users.index') }}" class="{{ request()->routeIs('users.*') ? 'active' : '' }}">{{ __('Users') }}</a>
+            <a href="{{ route('activity-log.index') }}" class="{{ request()->routeIs('activity-log.*') ? 'active' : '' }}">{{ __('Activity log') }}</a>
         @endif
         @if(auth()->user()->isSuperAdmin())
             <a href="{{ route('groups.index') }}" class="{{ request()->routeIs('groups.*') ? 'active' : '' }}">{{ __('Groups') }}</a>
@@ -203,6 +237,9 @@
     @if(session('error'))
         <div class="alert alert-error">{{ session('error') }}</div>
     @endif
+    @if(session('info'))
+        <div class="alert alert-info">{{ session('info') }}</div>
+    @endif
     @if($errors->any())
         <div class="alert alert-error">
             <ul style="margin:0;padding-left:1.2rem">
@@ -215,7 +252,17 @@
 </main>
 
 <script>
+    function toggleNavDd(id) {
+        const el = document.getElementById(id);
+        const wasOpen = el.classList.contains('open');
+        document.querySelectorAll('.nav-dd.open').forEach(d => d.classList.remove('open'));
+        if (!wasOpen) el.classList.add('open');
+    }
+
     document.addEventListener('click', function(e) {
+        if (!e.target.closest('.nav-item')) {
+            document.querySelectorAll('.nav-dd.open').forEach(d => d.classList.remove('open'));
+        }
         const projectSwitcher = document.getElementById('projectSwitcher');
         const projectDropdown = document.getElementById('projectDropdown');
         if (projectSwitcher && projectDropdown && !projectSwitcher.contains(e.target)) {
@@ -227,6 +274,35 @@
             groupDropdown.classList.remove('open');
         }
     });
+
+    function toggleCat(catId) {
+        const header = document.querySelector(`tr[data-cat="${catId}"]`);
+        if (!header) return;
+        const isOpen = header.dataset.open === '1';
+        if (isOpen) {
+            hideDescendants(catId);
+            header.dataset.open = '0';
+        } else {
+            showChildren(catId);
+            header.dataset.open = '1';
+        }
+        const caret = header.querySelector('.cat-caret');
+        if (caret) caret.style.transform = isOpen ? '' : 'rotate(90deg)';
+    }
+
+    function hideDescendants(catId) {
+        document.querySelectorAll(`tr[data-parent="${catId}"]`).forEach(row => {
+            row.style.display = 'none';
+            if (row.dataset.cat) hideDescendants(row.dataset.cat);
+        });
+    }
+
+    function showChildren(catId) {
+        document.querySelectorAll(`tr[data-parent="${catId}"]`).forEach(row => {
+            row.style.display = '';
+            if (row.dataset.cat && row.dataset.open === '1') showChildren(row.dataset.cat);
+        });
+    }
 </script>
 </body>
 </html>

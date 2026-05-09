@@ -36,6 +36,7 @@ class InvoiceController extends Controller
             ->orderBy('name')->pluck('name', 'id');
 
         $invoices = Invoice::with(['contract', 'sender', 'recipient'])
+            ->withCount('files')
             ->whereIn('contract_id', $contractIds)
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
                 $q2->where('no', 'ilike', "%{$request->search}%")
@@ -46,32 +47,46 @@ class InvoiceController extends Controller
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->from, fn ($q) => $q->where('issued', '>=', $request->from))
             ->when($request->to,   fn ($q) => $q->where('issued', '<=', $request->to))
+            ->when($request->filled('advance'), fn ($q) => $q->where('is_advance', $request->advance === '1'))
+            ->when($request->file_filter === '0', fn ($q) => $q->doesntHave('files'))
+            ->when($request->file_filter === '1', fn ($q) => $q->has('files'))
             ->orderByDesc('issued')
             ->paginate(50)
             ->withQueryString();
 
-        return view('invoices.index', compact('invoices', 'contracts', 'companies'));
+        $selectedContract = $request->contract_id
+            ? $contracts->firstWhere('id', $request->contract_id)
+            : null;
+        $isAdvanceList = $request->filled('advance') && $request->advance === '1';
+
+        return view('invoices.index', compact('invoices', 'contracts', 'companies', 'selectedContract', 'isAdvanceList'));
     }
 
     public function show(Invoice $invoice): View
     {
         $this->authorizeInvoice($invoice);
-        $invoice->load(['contract.project', 'sender', 'recipient', 'items.contractItem']);
+        $invoice->load(['contract.project', 'sender', 'recipient', 'items.contractItem', 'deductions.advanceInvoice', 'files.tags']);
         $contractItems = $invoice->contract->items()
             ->with('invoiceItems')
             ->orderBy('sort')
             ->get()
             ->each(fn ($item) => $item->append(['invoiced_amount', 'remaining_amount']));
-        return view('invoices.show', compact('invoice', 'contractItems'));
+        $advanceInvoices = $invoice->is_advance ? collect() : $invoice->contract->invoices()
+            ->where('is_advance', true)
+            ->get();
+        $canEdit      = $this->currentUser()->canWrite($invoice->contract->project);
+        $existingTags = \App\Models\FileTag::where('id_group', $this->currentGroupId())->orderBy('name')->pluck('name');
+        return view('invoices.show', compact('invoice', 'contractItems', 'advanceInvoices', 'canEdit', 'existingTags'));
     }
 
-    public function create(Contract $contract): View
+    public function create(Request $request, Contract $contract): View
     {
         abort_unless(
             Project::where('id', $contract->project_id)->where('id_group', $this->currentGroupId())->exists(),
             403
         );
-        return view('invoices.form', compact('contract'));
+        $isAdvance = $request->boolean('advance');
+        return view('invoices.form', compact('contract', 'isAdvance'));
     }
 
     public function store(Request $request, Contract $contract): RedirectResponse
@@ -81,14 +96,18 @@ class InvoiceController extends Controller
             403
         );
         $data = $request->validate([
-            'no'          => ['required', 'string', 'max:100'],
-            'description' => ['nullable', 'string'],
-            'issued'      => ['nullable', 'date'],
-            'taxdate'     => ['nullable', 'date'],
-            'due'         => ['nullable', 'date'],
-            'paid'        => ['nullable', 'date'],
-            'note'        => ['nullable', 'string'],
+            'no'             => ['required', 'string', 'max:100'],
+            'description'    => ['nullable', 'string'],
+            'issued'         => ['nullable', 'date'],
+            'taxdate'        => ['required', 'date'],
+            'due'            => ['nullable', 'date'],
+            'paid'           => ['nullable', 'date'],
+            'note'           => ['nullable', 'string'],
+            'is_advance'     => ['nullable', 'boolean'],
+            'advance_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
+
+        $data['is_advance'] = $request->input('is_advance') === '1';
 
         $projectCompanyId = $contract->project->id_company;
 
@@ -105,21 +124,23 @@ class InvoiceController extends Controller
     public function edit(Invoice $invoice): View
     {
         $this->authorizeInvoice($invoice);
-        $contract = $invoice->contract;
-        return view('invoices.form', compact('invoice', 'contract'));
+        $contract  = $invoice->contract;
+        $isAdvance = $invoice->is_advance;
+        return view('invoices.form', compact('invoice', 'contract', 'isAdvance'));
     }
 
     public function update(Request $request, Invoice $invoice): RedirectResponse
     {
         $this->authorizeInvoice($invoice);
         $data = $request->validate([
-            'no'          => ['required', 'string', 'max:100'],
-            'description' => ['nullable', 'string'],
-            'issued'      => ['nullable', 'date'],
-            'taxdate'     => ['nullable', 'date'],
-            'due'         => ['nullable', 'date'],
-            'paid'        => ['nullable', 'date'],
-            'note'        => ['nullable', 'string'],
+            'no'             => ['required', 'string', 'max:100'],
+            'description'    => ['nullable', 'string'],
+            'issued'         => ['nullable', 'date'],
+            'taxdate'        => ['required', 'date'],
+            'due'            => ['nullable', 'date'],
+            'paid'           => ['nullable', 'date'],
+            'note'           => ['nullable', 'string'],
+            'advance_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $invoice->update($data);

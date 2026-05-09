@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\File;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Invoice extends Model
 {
+    use LogsActivity;
+
     const STATUS_PENDING  = 1;
     const STATUS_PAID     = 2;
     const STATUS_DUE_SOON = 3;
@@ -16,15 +21,18 @@ class Invoice extends Model
     protected $fillable = [
         'no', 'contract_id', 'sendby_id', 'sendto_id',
         'description', 'issued', 'taxdate', 'due', 'paid', 'status', 'note',
+        'is_advance', 'advance_amount',
     ];
 
     protected function casts(): array
     {
         return [
-            'issued'  => 'date',
-            'taxdate' => 'date',
-            'due'     => 'date',
-            'paid'    => 'date',
+            'issued'         => 'date',
+            'taxdate'        => 'date',
+            'due'            => 'date',
+            'paid'           => 'date',
+            'is_advance'     => 'boolean',
+            'advance_amount' => 'float',
         ];
     }
 
@@ -48,9 +56,65 @@ class Invoice extends Model
         return $this->hasMany(InvoiceItem::class)->orderBy('sort');
     }
 
+    public function deductions(): HasMany
+    {
+        return $this->hasMany(InvoiceAdvanceDeduction::class);
+    }
+
+    public function advanceDeductionsReceived(): HasMany
+    {
+        return $this->hasMany(InvoiceAdvanceDeduction::class, 'advance_invoice_id');
+    }
+
+    public function files(): MorphMany
+    {
+        return $this->morphMany(File::class, 'fileable')->orderByDesc('created_at');
+    }
+
+    public function getItemsTotalAttribute(): float
+    {
+        if ($this->is_advance) return (float) ($this->advance_amount ?? 0);
+        return (float) $this->items()->sum('amount');
+    }
+
+    public function getRetentionShortAmountAttribute(): float
+    {
+        if ($this->is_advance) return 0.0;
+        $rate = $this->contract->retention_short ?? 0;
+        if (!$rate) return 0.0;
+        return round($this->items_total * $rate / 100, 2);
+    }
+
+    public function getRetentionLongAmountAttribute(): float
+    {
+        if ($this->is_advance) return 0.0;
+        $rate = $this->contract->retention_long ?? 0;
+        if (!$rate) return 0.0;
+        return round($this->items_total * $rate / 100, 2);
+    }
+
     public function getTotalAttribute(): float
     {
-        return $this->items()->sum('amount');
+        if ($this->is_advance) {
+            return (float) ($this->advance_amount ?? 0);
+        }
+        $itemsTotal = (float) $this->items()->sum('amount');
+        $deducted   = (float) $this->deductions()->sum('amount');
+        $retShort   = round($itemsTotal * ($this->contract->retention_short ?? 0) / 100, 2);
+        $retLong    = round($itemsTotal * ($this->contract->retention_long ?? 0) / 100, 2);
+        return $itemsTotal - $retShort - $retLong - $deducted;
+    }
+
+    public function getDeductedAmountAttribute(): float
+    {
+        return (float) $this->deductions()->sum('amount');
+    }
+
+    public function getRemainingAdvanceAttribute(): float
+    {
+        if (!$this->is_advance) return 0;
+        $amortized = $this->advanceDeductionsReceived()->sum('amount');
+        return (float) ($this->advance_amount ?? 0) - $amortized;
     }
 
     public function getStatusLabelAttribute(): string

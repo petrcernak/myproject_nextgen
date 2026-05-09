@@ -15,16 +15,20 @@
             @if($contract->date) · {{ $contract->date->format('d.m.Y') }} @endif
         </div>
     </div>
-    <div style="display:flex;gap:.5rem">
+    <div style="display:flex;gap:.5rem;align-items:center">
+        <a href="{{ route('contracts.files', $contract) }}" class="btn btn-secondary" title="{{ __('Files') }}" style="display:flex;align-items:center;gap:.3rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            @if($contract->files_count) <span style="font-size:12px;font-weight:600">{{ $contract->files_count }}</span> @endif
+        </a>
         @if($canEdit)
-            <a href="{{ route('contracts.content', $contract) }}" class="btn btn-primary">{{ __('Edit items') }}</a>
-            <a href="{{ route('contracts.edit', $contract) }}" class="btn btn-secondary">{{ __('Settings') }}</a>
-            @if($contract->isDeletable())
-                <form method="POST" action="{{ route('contracts.destroy', $contract) }}" onsubmit="return confirm('{{ __('Really delete?') }}')">
-                    @csrf @method('DELETE')
-                    <button class="btn btn-danger">{{ __('Delete') }}</button>
-                </form>
-            @endif
+        <a href="{{ route('contracts.content', $contract) }}" class="btn btn-primary">{{ __('Edit content') }}</a>
+        <a href="{{ route('contracts.edit', $contract) }}" class="btn btn-secondary">{{ __('Settings') }}</a>
+        @if($contract->isDeletable())
+            <form method="POST" action="{{ route('contracts.destroy', $contract) }}" onsubmit="return confirm('{{ __('Really delete?') }}')">
+                @csrf @method('DELETE')
+                <button class="btn btn-danger">{{ __('Delete') }}</button>
+            </form>
+        @endif
         @endif
     </div>
 </div>
@@ -34,10 +38,12 @@
     $hasAmendments = $contract->amendments->isNotEmpty();
     $hasCoChanges  = $hasCos || $hasAmendments;
     $coChanges     = $hasCoChanges ? $contract->total_co_changes : 0;
+    $cosChanges    = $contract->standaloneChangeOrders->sum(fn($co) => $co->items->sum('amount'));
+    $amdChanges    = $contract->amendments->sum('total');
 
-    // Per-item aggregation: sum of latest CR revision report amounts
+    // Per-item aggregation: sum of latest CR revision report amounts (exclude rejected/converted)
     $crPerItem = [];
-    foreach ($contract->changeRequests as $cr) {
+    foreach ($contract->changeRequests->filter(fn($cr) => $cr->countsInReport()) as $cr) {
         foreach ($cr->items as $crItem) {
             $id = $crItem->contract_item_id;
             $crPerItem[$id] = ($crPerItem[$id] ?? 0) + ($crItem->latestRevision?->amount_report ?? 0);
@@ -57,6 +63,13 @@
     $crTotal      = array_sum($crPerItem);
     $caTotal      = array_sum($caPerItem);
     $expectedFinal = $contract->revised_total + $crTotal + $caTotal;
+
+    $regularInvoices = $contract->invoices->where('is_advance', false);
+    $invoicesCount   = $regularInvoices->count();
+    $invoicesTotal   = $regularInvoices->sum(fn($inv) => $inv->total);
+    $advanceInvoices = $contract->invoices->where('is_advance', true);
+    $advanceCount    = $advanceInvoices->count();
+    $advanceTotal    = $advanceInvoices->sum('advance_amount');
 @endphp
 
 {{-- Summary cards --}}
@@ -81,18 +94,25 @@
     </div>
     <div class="card card-body">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">{{ __('Contract value') }}</div>
-        <div style="font-size:1.6rem;font-weight:700">{{ number_format($contract->total, 2, ',', ' ') }} {{ $contract->currency }}</div>
-        @if($hasCoChanges)
-        <div style="font-size:12px;margin-top:.4rem">
-            <span style="color:#6b7280">{{ __('Changes') }}: </span>
-            <span style="font-weight:600;color:{{ $coChanges >= 0 ? '#1d4ed8' : '#dc2626' }}">{{ $coChanges >= 0 ? '+' : '' }}{{ number_format($coChanges, 2, ',', ' ') }}</span>
+        <div style="font-size:1.6rem;font-weight:700">{{ number_format($hasCoChanges ? $contract->revised_total : $contract->total, 2, ',', ' ') }} {{ $contract->currency }}</div>
+        <div style="font-size:12px;margin-top:.5rem;display:flex;flex-direction:column;gap:.2rem">
+            <div style="display:flex;justify-content:space-between;gap:1rem">
+                <span style="color:#6b7280">{{ __('Original amount') }}</span>
+                <span>{{ number_format($contract->total, 2, ',', ' ') }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:1rem">
+                <a href="{{ route('contracts.change-orders.index', $contract) }}" style="color:#6b7280;text-decoration:none">{{ __('Change orders') }}</a>
+                <span style="font-weight:600;color:{{ $cosChanges > 0 ? '#1d4ed8' : ($cosChanges < 0 ? '#dc2626' : '#9ca3af') }}">
+                    {{ $cosChanges != 0 ? ($cosChanges > 0 ? '+' : '') . number_format($cosChanges, 2, ',', ' ') : '—' }}
+                </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:1rem">
+                <a href="{{ route('contracts.amendments.index', $contract) }}" style="color:#6b7280;text-decoration:none">{{ __('Amendments') }}</a>
+                <span style="font-weight:600;color:{{ $amdChanges > 0 ? '#1d4ed8' : ($amdChanges < 0 ? '#dc2626' : '#9ca3af') }}">
+                    {{ $amdChanges != 0 ? ($amdChanges > 0 ? '+' : '') . number_format($amdChanges, 2, ',', ' ') : '—' }}
+                </span>
+            </div>
         </div>
-        <div style="font-size:13px;font-weight:700;margin-top:.3rem;padding-top:.3rem;border-top:1px solid #e5e7eb">
-            {{ __('Revised total') }}: {{ number_format($contract->revised_total, 2, ',', ' ') }} {{ $contract->currency }}
-        </div>
-        @else
-        <div style="font-size:12px;color:#6b7280;margin-top:.4rem">{{ $contract->items->count() }} {{ __('items') }}</div>
-        @endif
     </div>
     <div class="card card-body">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">{{ __('Invoiced') }}</div>
@@ -102,27 +122,44 @@
             <div style="height:4px;background:#2563eb;border-radius:2px;width:{{ min($pct,100) }}%"></div>
         </div>
         <div style="font-size:11px;color:#6b7280;margin-top:.3rem">{{ $pct }} %</div>
+        <div style="font-size:12px;margin-top:.4rem;display:flex;flex-direction:column;gap:.2rem">
+            <span style="display:flex;gap:.75rem;flex-wrap:wrap">
+                <a href="{{ route('invoices.index', ['contract_id' => $contract->id]) }}" style="color:#6b7280;text-decoration:none">
+                    {{ __('Invoices') }}: <strong>{{ $invoicesCount }}</strong>
+                </a>
+                <a href="{{ route('invoices.index', ['contract_id' => $contract->id, 'advance' => '1']) }}" style="color:#92400e;text-decoration:none">
+                    {{ __('Down payments') }}: <strong>{{ $advanceCount }}</strong>
+                </a>
+            </span>
+            @if($contract->retention_short || $contract->retention_long)
+            @php $retReleased = $contract->retentionReleases->sum('amount'); @endphp
+            <a href="{{ route('contracts.retention', $contract) }}" style="color:#6b7280;text-decoration:none">
+                {{ __('Released') }}: <strong style="color:#16a34a">{{ number_format($retReleased, 2, ',', ' ') }}</strong>
+                / {{ __('Held') }}: <strong style="color:#dc2626">{{ number_format($contract->retention_held, 2, ',', ' ') }}</strong>
+            </a>
+            @endif
+        </div>
     </div>
     @if($hasFuture)
     <div class="card card-body" style="border:2px solid #dbeafe">
         <div style="font-size:11px;color:#2563eb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">{{ __('Expected final') }}</div>
         <div style="font-size:1.6rem;font-weight:700">{{ number_format($expectedFinal, 2, ',', ' ') }} {{ $contract->currency }}</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:.4rem">
-            @if($crTotal != 0)<span>CR: <strong style="color:{{ $crTotal > 0 ? '#dc2626' : '#16a34a' }}">{{ $crTotal >= 0 ? '+' : '' }}{{ number_format($crTotal, 2, ',', ' ') }}</strong></span>@endif
-            @if($crTotal != 0 && $caTotal != 0) &nbsp;·&nbsp; @endif
-            @if($caTotal != 0)<span>CA: <strong style="color:{{ $caTotal > 0 ? '#dc2626' : '#16a34a' }}">{{ $caTotal >= 0 ? '+' : '' }}{{ number_format($caTotal, 2, ',', ' ') }}</strong></span>@endif
+        <div style="font-size:12px;margin-top:.5rem;display:flex;flex-direction:column;gap:.2rem">
+            <div style="display:flex;justify-content:space-between;gap:.5rem">
+                <a href="{{ route('contracts.change-requests.index', $contract) }}" style="color:#6b7280;text-decoration:none">{{ __('Change requests') }}</a>
+                <strong style="color:{{ $crTotal > 0 ? '#dc2626' : '#16a34a' }}">{{ $crTotal != 0 ? ($crTotal >= 0 ? '+' : '') . number_format($crTotal, 2, ',', ' ') : '—' }}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:.5rem">
+                <a href="{{ route('contracts.anticipateds.index', $contract) }}" style="color:#6b7280;text-decoration:none">{{ __('Anticipated') }}</a>
+                <strong style="color:{{ $caTotal > 0 ? '#dc2626' : '#16a34a' }}">{{ $caTotal != 0 ? ($caTotal >= 0 ? '+' : '') . number_format($caTotal, 2, ',', ' ') : '—' }}</strong>
+            </div>
         </div>
     </div>
     @endif
 </div>
 
 {{-- Contract Items --}}
-<div class="page-header" style="margin-bottom:.75rem">
-    <h2 style="font-size:1rem">{{ __('Contract items') }}</h2>
-    @if($canEdit)
-        <a href="{{ route('contracts.content', $contract) }}" class="btn btn-secondary btn-sm">{{ __('Edit items') }}</a>
-    @endif
-</div>
+<h2 style="font-size:1rem;font-weight:600;margin-bottom:.75rem">{{ __('Contract items') }}</h2>
 <div class="card" style="margin-bottom:1.5rem">
     @if($contract->items->isEmpty())
         <div class="empty" style="padding:1.5rem">
@@ -131,7 +168,7 @@
         </div>
     @else
         <div style="overflow-x:auto">
-        <table style="font-size:13px">
+        <table style="font-size:11px">
             <thead>
                 <tr>
                     <th style="width:80px">{{ __('Code') }}</th>
@@ -156,18 +193,67 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($contract->items as $item)
+                @php
+                    $colCount = 4 + ($hasCos ? 1 : 0) + ($hasAmendments ? 1 : 0) + ($hasCoChanges ? 1 : 0) + ($hasFuture ? 3 : 0);
+
+                    // Recursive subtotal closure — defined once, passed to partials
+                    $subtotalFn = function($cat) use (&$subtotalFn, $crPerItem, $caPerItem): array {
+                        $sub = ['amount'=>0,'co'=>0,'amd'=>0,'effective'=>0,'invoiced'=>0,'remaining'=>0,'cr'=>0,'ca'=>0,'expected'=>0];
+                        foreach ($cat->items as $si) {
+                            $inv = $si->invoiceItems->sum('amount');
+                            $co  = $si->changeOrderItems->filter(fn($c) => $c->changeOrder?->amendment_id === null)->sum('amount');
+                            $amd = $si->amendmentItems->sum('amount') + $si->changeOrderItems->filter(fn($c) => $c->changeOrder?->amendment_id !== null)->sum('amount');
+                            $eff = $si->amount + $co + $amd;
+                            $cr  = $crPerItem[$si->id] ?? 0;
+                            $ca  = $caPerItem[$si->id] ?? 0;
+                            $sub['amount']    += $si->amount;
+                            $sub['co']        += $co;
+                            $sub['amd']       += $amd;
+                            $sub['effective'] += $eff;
+                            $sub['invoiced']  += $inv;
+                            $sub['remaining'] += $eff - $inv;
+                            $sub['cr']        += $cr;
+                            $sub['ca']        += $ca;
+                            $sub['expected']  += $eff + $cr + $ca;
+                        }
+                        foreach ($cat->children as $child) {
+                            $childSub = $subtotalFn($child);
+                            foreach ($sub as $k => $v) { $sub[$k] += $childSub[$k]; }
+                        }
+                        return $sub;
+                    };
+                @endphp
+
+                {{-- Root categories (hierarchical) --}}
+                @foreach($contract->categories->whereNull('parent_id') as $category)
+                    @include('contracts._cat_show', [
+                        'category'      => $category,
+                        'depth'         => 0,
+                        'subtotalFn'    => $subtotalFn,
+                        'hasCos'        => $hasCos,
+                        'hasAmendments' => $hasAmendments,
+                        'hasCoChanges'  => $hasCoChanges,
+                        'hasFuture'     => $hasFuture,
+                        'crPerItem'     => $crPerItem,
+                        'caPerItem'     => $caPerItem,
+                        'colCount'      => $colCount,
+                    ])
+                @endforeach
+
+                {{-- Uncategorized items --}}
+                @php $uncategorized = $contract->items->whereNull('contract_category_id'); @endphp
+                @foreach($uncategorized as $item)
                 @php
                     $invoiced    = $item->invoiceItems->sum('amount');
                     $coChange    = $item->changeOrderItems->filter(fn($coi) => $coi->changeOrder?->amendment_id === null)->sum('amount');
                     $amdChange   = $item->amendmentItems->sum('amount')
                                  + $item->changeOrderItems->filter(fn($coi) => $coi->changeOrder?->amendment_id !== null)->sum('amount');
                     $effective   = $item->amount + $coChange + $amdChange;
-                    $remaining = $effective - $invoiced;
-                    $pct       = $effective > 0 ? min(100, round($invoiced / $effective * 100)) : 0;
-                    $crVal     = $crPerItem[$item->id] ?? null;
-                    $caVal     = $caPerItem[$item->id] ?? null;
-                    $expected  = $effective + ($crVal ?? 0) + ($caVal ?? 0);
+                    $remaining   = $effective - $invoiced;
+                    $pct         = $effective > 0 ? min(100, round($invoiced / $effective * 100)) : 0;
+                    $crVal       = $crPerItem[$item->id] ?? null;
+                    $caVal       = $caPerItem[$item->id] ?? null;
+                    $expected    = $effective + ($crVal ?? 0) + ($caVal ?? 0);
                 @endphp
                 <tr>
                     <td><code style="color:#6b7280;font-size:11px">{{ $item->code ?? '—' }}</code></td>
@@ -180,12 +266,16 @@
                     <td style="text-align:right;white-space:nowrap">{{ number_format($item->amount, 2, ',', ' ') }}</td>
                     @if($hasCos)
                     <td style="text-align:right;white-space:nowrap;color:{{ $coChange > 0 ? '#1d4ed8' : ($coChange < 0 ? '#dc2626' : '#9ca3af') }}">
-                        {{ $coChange != 0 ? ($coChange > 0 ? '+' : '') . number_format($coChange, 2, ',', ' ') : '—' }}
+                        @if($coChange != 0)
+                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($coChange, 2, ',', ' ') }}</a>
+                        @else—@endif
                     </td>
                     @endif
                     @if($hasAmendments)
                     <td style="text-align:right;white-space:nowrap;color:{{ $amdChange > 0 ? '#1d4ed8' : ($amdChange < 0 ? '#dc2626' : '#9ca3af') }}">
-                        {{ $amdChange != 0 ? ($amdChange > 0 ? '+' : '') . number_format($amdChange, 2, ',', ' ') : '—' }}
+                        @if($amdChange != 0)
+                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($amdChange, 2, ',', ' ') }}</a>
+                        @else—@endif
                     </td>
                     @endif
                     @if($hasCoChanges)
@@ -197,10 +287,14 @@
                     </td>
                     @if($hasFuture)
                     <td style="text-align:right;white-space:nowrap;background:#fef2f2;color:{{ $crVal !== null ? ($crVal > 0 ? '#dc2626' : ($crVal < 0 ? '#16a34a' : '#6b7280')) : '#d1d5db' }}">
-                        @if($crVal !== null){{ $crVal >= 0 ? '+' : '' }}{{ number_format($crVal, 2, ',', ' ') }}@else—@endif
+                        @if($crVal !== null)
+                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($crVal, 2, ',', ' ') }}</a>
+                        @else—@endif
                     </td>
                     <td style="text-align:right;white-space:nowrap;background:#fef2f2;color:{{ $caVal !== null ? ($caVal > 0 ? '#dc2626' : ($caVal < 0 ? '#16a34a' : '#6b7280')) : '#d1d5db' }}">
-                        @if($caVal !== null){{ $caVal >= 0 ? '+' : '' }}{{ number_format($caVal, 2, ',', ' ') }}@else—@endif
+                        @if($caVal !== null)
+                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($caVal, 2, ',', ' ') }}</a>
+                        @else—@endif
                     </td>
                     <td style="text-align:right;font-weight:600;background:#dbeafe;color:#1d4ed8">
                         {{ number_format($expected, 2, ',', ' ') }}
@@ -214,25 +308,31 @@
                     @if($hasCos)
                     @php $totalCoOnly = $contract->standaloneChangeOrders->sum(fn($co) => $co->items->sum('amount')); @endphp
                     <td style="text-align:right;font-size:12px;color:{{ $totalCoOnly >= 0 ? '#1d4ed8' : '#dc2626' }}">
-                        {{ $totalCoOnly != 0 ? ($totalCoOnly >= 0 ? '+' : '') . number_format($totalCoOnly, 2, ',', ' ') : '—' }}
+                        {{ $totalCoOnly != 0 ? number_format($totalCoOnly, 2, ',', ' ') : '—' }}
                     </td>
                     @endif
                     @if($hasAmendments)
                     @php $totalAmdOnly = $contract->amendments->sum('total'); @endphp
                     <td style="text-align:right;font-size:12px;color:{{ $totalAmdOnly >= 0 ? '#1d4ed8' : '#dc2626' }}">
-                        {{ $totalAmdOnly != 0 ? ($totalAmdOnly >= 0 ? '+' : '') . number_format($totalAmdOnly, 2, ',', ' ') : '—' }}
+                        {{ $totalAmdOnly != 0 ? number_format($totalAmdOnly, 2, ',', ' ') : '—' }}
                     </td>
                     @endif
                     @if($hasCoChanges)
                     <td style="text-align:right">{{ number_format($contract->revised_total, 2, ',', ' ') }}</td>
                     @endif
-                    <td colspan="2"></td>
+                    @php
+                        $totalInvoiced   = $contract->invoiced;
+                        $effectiveTotal  = $hasCoChanges ? $contract->revised_total : $contract->total;
+                        $totalRemaining  = $effectiveTotal - $totalInvoiced;
+                    @endphp
+                    <td style="text-align:right;color:#6b7280">{{ number_format($totalInvoiced, 2, ',', ' ') }}</td>
+                    <td style="text-align:right;font-weight:600;color:{{ $totalRemaining > 0 ? '#1d4ed8' : ($totalRemaining < 0 ? '#dc2626' : '#6b7280') }}">{{ number_format($totalRemaining, 2, ',', ' ') }}</td>
                     @if($hasFuture)
                     <td style="text-align:right;font-size:12px;background:#fef2f2;color:{{ $crTotal > 0 ? '#dc2626' : ($crTotal < 0 ? '#16a34a' : '#9ca3af') }}">
-                        {{ $crTotal != 0 ? ($crTotal >= 0 ? '+' : '') . number_format($crTotal, 2, ',', ' ') : '—' }}
+                        {{ $crTotal != 0 ? number_format($crTotal, 2, ',', ' ') : '—' }}
                     </td>
                     <td style="text-align:right;font-size:12px;background:#fef2f2;color:{{ $caTotal > 0 ? '#dc2626' : ($caTotal < 0 ? '#16a34a' : '#9ca3af') }}">
-                        {{ $caTotal != 0 ? ($caTotal >= 0 ? '+' : '') . number_format($caTotal, 2, ',', ' ') : '—' }}
+                        {{ $caTotal != 0 ? number_format($caTotal, 2, ',', ' ') : '—' }}
                     </td>
                     <td style="text-align:right;background:#dbeafe;color:#1d4ed8">{{ number_format($expectedFinal, 2, ',', ' ') }}</td>
                     @endif
@@ -243,93 +343,4 @@
     @endif
 </div>
 
-{{-- Sub-entity summary tiles --}}
-@php
-    $amendmentsCount = $contract->amendments->count();
-    $amendmentsTotal = $contract->amendments->sum('total');
-    $cosCount        = $contract->standaloneChangeOrders->count();
-    $cosTotal        = $contract->standaloneChangeOrders->sum(fn($co) => $co->items->sum('amount'));
-    $casCount        = $contract->anticipateds->count();
-    $crsCount        = $contract->changeRequests->count();
-    $invoicesCount   = $contract->invoices->count();
-    $invoicesTotal   = $contract->invoiced;
-@endphp
-<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;margin-bottom:1.5rem">
-
-    {{-- Change Orders --}}
-    <div class="card card-body" style="padding:.75rem 1rem">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">{{ __('Change orders') }}</div>
-        <div style="font-size:1.4rem;font-weight:700">{{ $cosCount }}</div>
-        @if($cosCount)
-        <div style="font-size:12px;margin-top:.2rem;color:{{ $cosTotal >= 0 ? '#1d4ed8' : '#dc2626' }}">
-            {{ $cosTotal >= 0 ? '+' : '' }}{{ number_format($cosTotal, 2, ',', ' ') }}
-        </div>
-        @endif
-        <div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap">
-            <a href="{{ route('contracts.change-orders.index', $contract) }}" class="btn btn-secondary btn-sm">{{ __('View all') }}</a>
-            @if($canEdit)<a href="{{ route('contracts.change-orders.create', $contract) }}" class="btn btn-primary btn-sm">+</a>@endif
-        </div>
-    </div>
-
-    {{-- Amendments --}}
-    <div class="card card-body" style="padding:.75rem 1rem">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">{{ __('Amendments') }}</div>
-        <div style="font-size:1.4rem;font-weight:700">{{ $amendmentsCount }}</div>
-        @if($amendmentsCount)
-        <div style="font-size:12px;margin-top:.2rem;color:{{ $amendmentsTotal >= 0 ? '#1d4ed8' : '#dc2626' }}">
-            {{ $amendmentsTotal >= 0 ? '+' : '' }}{{ number_format($amendmentsTotal, 2, ',', ' ') }}
-        </div>
-        @endif
-        <div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap">
-            <a href="{{ route('contracts.amendments.index', $contract) }}" class="btn btn-secondary btn-sm">{{ __('View all') }}</a>
-            @if($canEdit)<a href="{{ route('contracts.amendments.create', $contract) }}" class="btn btn-primary btn-sm">+</a>@endif
-        </div>
-    </div>
-
-    {{-- Change Requests --}}
-    <div class="card card-body" style="padding:.75rem 1rem">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">{{ __('Change requests') }}</div>
-        <div style="font-size:1.4rem;font-weight:700">{{ $crsCount }}</div>
-        @if($crsCount)
-        <div style="font-size:12px;margin-top:.2rem;color:#2563eb">
-            {{ number_format($crTotal, 2, ',', ' ') }}
-        </div>
-        @endif
-        <div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap">
-            <a href="{{ route('contracts.change-requests.index', $contract) }}" class="btn btn-secondary btn-sm">{{ __('View all') }}</a>
-            @if($canEdit)<a href="{{ route('contracts.change-requests.create', $contract) }}" class="btn btn-primary btn-sm">+</a>@endif
-        </div>
-    </div>
-
-    {{-- Anticipated --}}
-    <div class="card card-body" style="padding:.75rem 1rem">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">{{ __('Contract anticipated') }}</div>
-        <div style="font-size:1.4rem;font-weight:700">{{ $casCount }}</div>
-        @if($casCount && $caTotal != 0)
-        <div style="font-size:12px;margin-top:.2rem;color:{{ $caTotal > 0 ? '#dc2626' : '#16a34a' }}">
-            {{ $caTotal >= 0 ? '+' : '' }}{{ number_format($caTotal, 2, ',', ' ') }}
-        </div>
-        @endif
-        <div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap">
-            <a href="{{ route('contracts.anticipateds.index', $contract) }}" class="btn btn-secondary btn-sm">{{ __('View all') }}</a>
-            @if($canEdit)<a href="{{ route('contracts.anticipateds.create', $contract) }}" class="btn btn-primary btn-sm">+</a>@endif
-        </div>
-    </div>
-
-    {{-- Invoices --}}
-    <div class="card card-body" style="padding:.75rem 1rem">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">{{ __('Invoices') }}</div>
-        <div style="font-size:1.4rem;font-weight:700">{{ $invoicesCount }}</div>
-        @if($invoicesCount)
-        <div style="font-size:12px;margin-top:.2rem;color:#6b7280">
-            {{ number_format($invoicesTotal, 2, ',', ' ') }}
-        </div>
-        @endif
-        <div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap">
-            <a href="{{ route('invoices.index', ['contract_id' => $contract->id]) }}" class="btn btn-secondary btn-sm">{{ __('View all') }}</a>
-            @if($canEdit)<a href="{{ route('contracts.invoices.create', $contract) }}" class="btn btn-primary btn-sm">+</a>@endif
-        </div>
-    </div>
-
-</div>
 @endsection
