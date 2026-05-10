@@ -39,6 +39,11 @@ class Budget extends Model
         return $this->hasMany(BudgetAdjustment::class)->orderByDesc('date');
     }
 
+    public function transfers(): HasMany
+    {
+        return $this->hasMany(BudgetTransfer::class)->orderByDesc('date');
+    }
+
     public function getTotalAttribute(): float
     {
         return $this->items()->sum('amount');

@@ -4,7 +4,8 @@
 @section('content')
 <div class="breadcrumb">
     <a href="{{ route('budgets.index') }}">{{ __('Budgets') }}</a>
-    <a href="{{ route('budgets.show', $budget) }}"><span>{{ $budget->name }}</span></a>
+    <a href="{{ route('budgets.show', $budget) }}">{{ $budget->name }}</a>
+    <a href="{{ route('budgets.adjustments.index', $budget) }}">{{ __('Adjustments') }}</a>
     <span>{{ __('Adjustment') }}</span>
 </div>
 <div class="page-header">

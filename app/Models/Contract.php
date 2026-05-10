@@ -16,7 +16,7 @@ class Contract extends Model
 
     protected $fillable = [
         'code', 'name', 'project_id', 'company_id',
-        'direction', 'currency', 'date', 'description', 'maturity',
+        'direction', 'currency', 'fx_rate', 'date', 'description', 'maturity',
         'retention_short', 'retention_long', 'note',
     ];
 
@@ -68,6 +68,18 @@ class Contract extends Model
     public function anticipateds(): HasMany
     {
         return $this->hasMany(ContractAnticipated::class)->orderBy('date')->orderBy('code');
+    }
+
+    public function budgetLinks(): HasMany
+    {
+        return $this->hasMany(ContractBudgetLink::class);
+    }
+
+    public function isFullyBudgetLinked(): bool
+    {
+        $total = $this->items()->count();
+        if ($total === 0) return false;
+        return $this->items()->whereNotNull('budget_item_id')->count() >= $total;
     }
 
     public function standaloneChangeOrders(): HasMany

@@ -24,6 +24,14 @@ class BudgetAdjustmentController extends Controller
         $this->authorizeBudget($adjustment->budget, $requireWrite);
     }
 
+    public function index(Budget $budget): View
+    {
+        $this->authorizeBudget($budget);
+        $budget->load('adjustments.items');
+        $canEdit = $this->currentUser()->canWrite($budget->project);
+        return view('budget_adjustments.index', compact('budget', 'canEdit'));
+    }
+
     public function create(Budget $budget): View
     {
         $this->authorizeBudget($budget, requireWrite: true);
@@ -61,7 +69,7 @@ class BudgetAdjustmentController extends Controller
             }
         }
 
-        return redirect()->route('budgets.show', $budget)->with('success', __('Adjustment saved.'));
+        return redirect()->route('budgets.adjustments.index', $budget)->with('success', __('Adjustment saved.'));
     }
 
     public function show(BudgetAdjustment $adjustment): View
@@ -110,7 +118,7 @@ class BudgetAdjustmentController extends Controller
             }
         }
 
-        return redirect()->route('budgets.show', $adjustment->budget)->with('success', __('Adjustment updated.'));
+        return redirect()->route('budgets.adjustments.index', $adjustment->budget)->with('success', __('Adjustment updated.'));
     }
 
     public function destroy(BudgetAdjustment $adjustment): RedirectResponse
@@ -118,6 +126,6 @@ class BudgetAdjustmentController extends Controller
         $this->authorizeAdjustment($adjustment, requireWrite: true);
         $budget = $adjustment->budget;
         $adjustment->delete();
-        return redirect()->route('budgets.show', $budget)->with('success', __('Adjustment deleted.'));
+        return redirect()->route('budgets.adjustments.index', $budget)->with('success', __('Adjustment deleted.'));
     }
 }

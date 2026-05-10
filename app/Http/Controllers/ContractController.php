@@ -75,6 +75,7 @@ class ContractController extends Controller
             'changeRequests.items.latestRevision',
             'anticipateds.items',
             'retentionReleases',
+            'budgetLinks.budget',
         ]);
         $contract->loadCount('files');
         $canEdit = $this->currentUser()->canWrite($contract->project);

@@ -176,17 +176,41 @@ Route::middleware('auth')->group(function () {
     Route::post('users/{user}/rights', [\App\Http\Controllers\UserController::class, 'updateRights'])->name('users.rights.update');
 
     // Budgets
+    // Contract ↔ Budget links
+    Route::get('contracts/{contract}/budget-links/create',  [\App\Http\Controllers\ContractBudgetLinkController::class, 'create'])->name('contracts.budget-links.create');
+    Route::post('contracts/{contract}/budget-links',        [\App\Http\Controllers\ContractBudgetLinkController::class, 'store'])->name('contracts.budget-links.store');
+    Route::get('contract-budget-links/{contractBudgetLink}',[\App\Http\Controllers\ContractBudgetLinkController::class, 'show'])->name('contract-budget-links.show');
+    Route::put('contract-budget-links/{contractBudgetLink}',[\App\Http\Controllers\ContractBudgetLinkController::class, 'update'])->name('contract-budget-links.update');
+    Route::delete('contract-budget-links/{contractBudgetLink}',[\App\Http\Controllers\ContractBudgetLinkController::class, 'destroy'])->name('contract-budget-links.destroy');
+
+    Route::get('budgets/{budget}/adjustments',        [\App\Http\Controllers\BudgetAdjustmentController::class, 'index'])->name('budgets.adjustments.index');
     Route::get('budgets/{budget}/adjustments/create', [\App\Http\Controllers\BudgetAdjustmentController::class, 'create'])->name('budgets.adjustments.create');
     Route::post('budgets/{budget}/adjustments',       [\App\Http\Controllers\BudgetAdjustmentController::class, 'store'])->name('budgets.adjustments.store');
     Route::get('budget-adjustments/{adjustment}',     [\App\Http\Controllers\BudgetAdjustmentController::class, 'show'])->name('budget-adjustments.show');
     Route::get('budget-adjustments/{adjustment}/edit',[\App\Http\Controllers\BudgetAdjustmentController::class, 'edit'])->name('budget-adjustments.edit');
     Route::put('budget-adjustments/{adjustment}',     [\App\Http\Controllers\BudgetAdjustmentController::class, 'update'])->name('budget-adjustments.update');
     Route::delete('budget-adjustments/{adjustment}',  [\App\Http\Controllers\BudgetAdjustmentController::class, 'destroy'])->name('budget-adjustments.destroy');
+    Route::get('budgets/{budget}/transfers',          [\App\Http\Controllers\BudgetTransferController::class, 'index'])->name('budgets.transfers.index');
+    Route::get('budgets/{budget}/transfers/create',   [\App\Http\Controllers\BudgetTransferController::class, 'create'])->name('budgets.transfers.create');
+    Route::post('budgets/{budget}/transfers',         [\App\Http\Controllers\BudgetTransferController::class, 'store'])->name('budgets.transfers.store');
+    Route::get('budget-transfers/{transfer}',         [\App\Http\Controllers\BudgetTransferController::class, 'show'])->name('budget-transfers.show');
+    Route::get('budget-transfers/{transfer}/edit',    [\App\Http\Controllers\BudgetTransferController::class, 'edit'])->name('budget-transfers.edit');
+    Route::put('budget-transfers/{transfer}',         [\App\Http\Controllers\BudgetTransferController::class, 'update'])->name('budget-transfers.update');
+    Route::delete('budget-transfers/{transfer}',      [\App\Http\Controllers\BudgetTransferController::class, 'destroy'])->name('budget-transfers.destroy');
     Route::get('budgets', [\App\Http\Controllers\BudgetController::class, 'index'])->name('budgets.index');
     Route::get('projects/{project}/budgets/create', [\App\Http\Controllers\BudgetController::class, 'create'])->name('projects.budgets.create');
     Route::post('projects/{project}/budgets', [\App\Http\Controllers\BudgetController::class, 'store'])->name('projects.budgets.store');
     Route::get('budgets/{budget}', [\App\Http\Controllers\BudgetController::class, 'show'])->name('budgets.show');
     Route::get('budgets/{budget}/content', [\App\Http\Controllers\BudgetController::class, 'editContent'])->name('budgets.content');
+    Route::get('budgets/{budget}/anticipated',          [\App\Http\Controllers\BudgetController::class, 'anticipated'])->name('budgets.anticipated');
+    Route::post('budgets/{budget}/anticipated',         [\App\Http\Controllers\BudgetController::class, 'saveAnticipated'])->name('budgets.anticipated.save');
+    Route::get('budgets/{budget}/value-to-place',       [\App\Http\Controllers\BudgetController::class, 'valueToPlace'])->name('budgets.value-to-place');
+    Route::post('budgets/{budget}/value-to-place',      [\App\Http\Controllers\BudgetController::class, 'saveValueToPlace'])->name('budgets.value-to-place.save');
+    Route::get('budgets/{budget}/contract-anticipated', [\App\Http\Controllers\BudgetController::class, 'contractAnticipated'])->name('budgets.contract-anticipated');
+    Route::get('budgets/{budget}/change-requests',      [\App\Http\Controllers\BudgetController::class, 'changeRequests'])->name('budgets.change-requests');
+    Route::get('budgets/{budget}/contracts',            [\App\Http\Controllers\BudgetController::class, 'contracts'])->name('budgets.contracts');
+    Route::get('budgets/{budget}/amendments',           [\App\Http\Controllers\BudgetController::class, 'amendments'])->name('budgets.amendments');
+    Route::get('budgets/{budget}/change-orders',        [\App\Http\Controllers\BudgetController::class, 'changeOrders'])->name('budgets.change-orders');
     Route::get('budgets/{budget}/edit', [\App\Http\Controllers\BudgetController::class, 'edit'])->name('budgets.edit');
     Route::put('budgets/{budget}', [\App\Http\Controllers\BudgetController::class, 'update'])->name('budgets.update');
     Route::delete('budgets/{budget}', [\App\Http\Controllers\BudgetController::class, 'destroy'])->name('budgets.destroy');

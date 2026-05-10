@@ -8,11 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ContractItem extends Model
 {
-    protected $fillable = ['contract_id', 'contract_category_id', 'code', 'description', 'amount', 'sort'];
+    protected $fillable = ['contract_id', 'contract_category_id', 'budget_item_id', 'code', 'description', 'amount', 'sort'];
 
     public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);
+    }
+
+    public function budgetItem(): BelongsTo
+    {
+        return $this->belongsTo(BudgetItem::class);
     }
 
     public function category(): BelongsTo

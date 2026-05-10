@@ -20,7 +20,7 @@ class Invoice extends Model
 
     protected $fillable = [
         'no', 'contract_id', 'sendby_id', 'sendto_id',
-        'description', 'issued', 'taxdate', 'due', 'paid', 'status', 'note',
+        'description', 'issued', 'taxdate', 'due', 'paid', 'status', 'fx_rate', 'note',
         'is_advance', 'advance_amount',
     ];
 

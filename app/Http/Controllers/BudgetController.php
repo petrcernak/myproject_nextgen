@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Budget;
 use App\Models\BudgetCategory;
 use App\Models\BudgetItem;
+use App\Models\ContractItem;
+use App\Models\ContractAnticipated;
+use App\Models\ContractAnticipatedItem;
+use App\Models\ChangeRequestItem;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -61,12 +65,124 @@ class BudgetController extends Controller
         $budget->load([
             'project',
             'categories.children.children.items.adjustmentItems',
+            'categories.children.children.items.transfersIn',
+            'categories.children.children.items.transfersOut',
             'categories.children.items.adjustmentItems',
+            'categories.children.items.transfersIn',
+            'categories.children.items.transfersOut',
             'categories.items.adjustmentItems',
+            'categories.items.transfersIn',
+            'categories.items.transfersOut',
             'adjustments.items',
+            'transfers.fromItem.category',
+            'transfers.toItem.category',
         ]);
         $canEdit = $this->currentUser()->canWrite($budget->project);
-        return view('budgets.show', compact('budget', 'canEdit'));
+
+        // Flatten all budget item IDs across all category levels
+        $allItemIds = collect();
+        $flatten = function ($categories) use (&$flatten, &$allItemIds) {
+            foreach ($categories as $cat) {
+                $allItemIds = $allItemIds->merge($cat->items->pluck('id'));
+                if ($cat->children->isNotEmpty()) {
+                    $flatten($cat->children);
+                }
+            }
+        };
+        $flatten($budget->categories);
+
+        // Load contract items linked to budget items
+        $contractItems = ContractItem::whereIn('budget_item_id', $allItemIds)
+            ->with([
+                'contract',
+                'invoiceItems.invoice',
+                'changeOrderItems',
+                'amendmentItems',
+            ])
+            ->get();
+
+        $ciIds = $contractItems->pluck('id');
+        $contractIds = $contractItems->pluck('contract_id')->unique()->values();
+
+        // Latest ContractAnticipated per contract → anticipated amounts per contract item
+        $latestAnticipatedIds = ContractAnticipated::whereIn('contract_id', $contractIds)
+            ->orderByDesc('date')->orderByDesc('id')
+            ->get()
+            ->groupBy('contract_id')
+            ->map(fn ($group) => $group->first()->id);
+
+        $anticipatedByContractItem = ContractAnticipatedItem::whereIn('contract_anticipated_id', $latestAnticipatedIds->values())
+            ->whereIn('contract_item_id', $ciIds)
+            ->get()
+            ->groupBy('contract_item_id')
+            ->map(fn ($items) => (float) $items->sum('amount'));
+
+        // Open/closed Change Request amounts (latest revision amount_report)
+        $crByContractItem = ChangeRequestItem::whereIn('contract_item_id', $ciIds)
+            ->whereHas('changeRequest', fn ($q) => $q->whereIn('status', ['open', 'closed']))
+            ->with('latestRevision')
+            ->get()
+            ->groupBy('contract_item_id')
+            ->map(fn ($items) => (float) $items->sum(
+                fn ($i) => (float) ($i->latestRevision?->amount_report ?? 0)
+            ));
+
+        // Build per-item cost data map
+        $costData = collect();
+        foreach ($contractItems->groupBy('budget_item_id') as $itemId => $items) {
+            $contracts  = (float) $items->sum('amount');
+            $changesCo  = (float) $items->sum(fn ($ci) => $ci->changeOrderItems->sum('amount'));
+            $changesAmd = (float) $items->sum(fn ($ci) => $ci->amendmentItems->sum('amount'));
+            $changes    = $changesCo + $changesAmd;
+            $invoiced   = (float) $items->sum(fn ($ci) => $ci->invoiceItems->sum('amount'));
+
+            $fxImpact = 0.0;
+            foreach ($items as $ci) {
+                $contractRate = (float) ($ci->contract->fx_rate ?? 0);
+                if (!$contractRate) continue;
+                foreach ($ci->invoiceItems as $ii) {
+                    $invoiceRate = (float) ($ii->invoice->fx_rate ?? $contractRate);
+                    if (!$invoiceRate) continue;
+                    $fxImpact += (float) $ii->amount / $invoiceRate
+                               - (float) $ii->amount / $contractRate;
+                }
+            }
+
+            $anticipatedCa = 0.0;
+            $anticipatedCr = 0.0;
+            foreach ($items as $ci) {
+                if (isset($anticipatedByContractItem[$ci->id])) {
+                    $anticipatedCa += (float) $anticipatedByContractItem[$ci->id];
+                } else {
+                    $anticipatedCa += (float) $ci->amount + (float) $ci->changeOrderItems->sum('amount')
+                                    + (float) $ci->amendmentItems->sum('amount');
+                }
+                $anticipatedCr += $crByContractItem->get($ci->id, 0.0);
+            }
+
+            $costData[$itemId] = [
+                'contracts'            => $contracts,
+                'changes_co'           => $changesCo,
+                'changes_amd'          => $changesAmd,
+                'changes'              => $changes,
+                'current_commitments'  => $contracts + $changes,
+                'invoiced'             => $invoiced,
+                'fx_impact'            => $fxImpact,
+                'anticipated_ca'       => $anticipatedCa,
+                'anticipated_cr'       => $anticipatedCr,
+                'anticipated_contracts'=> $anticipatedCa + $anticipatedCr,
+            ];
+        }
+
+        // Grand supplementary totals for tiles
+        $invoiceCount    = \App\Models\InvoiceItem::whereIn('contract_item_id', $ciIds)
+                               ->distinct('invoice_id')->count('invoice_id');
+        $anticipatedManualTotal = \App\Models\BudgetItem::whereIn('id', $allItemIds)
+                                      ->sum('anticipated_manual');
+
+        return view('budgets.show', compact(
+            'budget', 'canEdit', 'costData', 'invoiceCount', 'anticipatedManualTotal'
+        ));
     }
 
     public function editContent(Budget $budget): View|RedirectResponse
@@ -133,6 +249,219 @@ class BudgetController extends Controller
         $budget->update($data);
 
         return redirect()->route('budgets.show', $budget)->with('success', __('Budget saved.'));
+    }
+
+    // --- Sub-pages: Anticipated, Value to Place, Contract Anticipated, Change Requests ---
+
+    public function anticipated(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load([
+            'categories.children.children.items',
+            'categories.children.items',
+            'categories.items',
+        ]);
+        $canEdit = $this->currentUser()->canWrite($budget->project);
+        return view('budgets.anticipated', compact('budget', 'canEdit'));
+    }
+
+    public function saveAnticipated(Request $request, Budget $budget): RedirectResponse
+    {
+        $this->authorizeBudget($budget, requireWrite: true);
+        $data = $request->validate(['items' => ['array'], 'items.*' => ['nullable', 'numeric']]);
+        foreach ($data['items'] ?? [] as $itemId => $value) {
+            BudgetItem::where('id', $itemId)
+                ->whereHas('category', fn ($q) => $q->where('budget_id', $budget->id))
+                ->update(['anticipated_manual' => $value ?? 0]);
+        }
+        return redirect()->route('budgets.anticipated', $budget)->with('success', __('Anticipated saved.'));
+    }
+
+    public function valueToPlace(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load([
+            'categories.children.children.items.adjustmentItems',
+            'categories.children.children.items.transfersIn',
+            'categories.children.children.items.transfersOut',
+            'categories.children.items.adjustmentItems',
+            'categories.children.items.transfersIn',
+            'categories.children.items.transfersOut',
+            'categories.items.adjustmentItems',
+            'categories.items.transfersIn',
+            'categories.items.transfersOut',
+        ]);
+        $canEdit = $this->currentUser()->canWrite($budget->project);
+        $costData = $this->buildCostData($budget);
+        return view('budgets.value_to_place', compact('budget', 'canEdit', 'costData'));
+    }
+
+    public function saveValueToPlace(Request $request, Budget $budget): RedirectResponse
+    {
+        $this->authorizeBudget($budget, requireWrite: true);
+        $data = $request->validate(['items' => ['array'], 'items.*' => ['nullable', 'numeric']]);
+        foreach ($data['items'] ?? [] as $itemId => $value) {
+            BudgetItem::where('id', $itemId)
+                ->whereHas('category', fn ($q) => $q->where('budget_id', $budget->id))
+                ->update(['value_to_place_manual' => $value !== '' && $value !== null ? $value : null]);
+        }
+        return redirect()->route('budgets.value-to-place', $budget)->with('success', __('Value to Place saved.'));
+    }
+
+    public function contractAnticipated(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load([
+            'categories.children.children.items',
+            'categories.children.items',
+            'categories.items',
+        ]);
+        $costData = $this->buildCostData($budget);
+        return view('budgets.contract_anticipated', compact('budget', 'costData'));
+    }
+
+    public function changeRequests(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load([
+            'categories.children.children.items',
+            'categories.children.items',
+            'categories.items',
+        ]);
+        $costData = $this->buildCostData($budget);
+        return view('budgets.change_requests', compact('budget', 'costData'));
+    }
+
+    public function contracts(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load(['categories.children.children.items', 'categories.children.items', 'categories.items']);
+        $costData = $this->buildCostData($budget);
+        return view('budgets.contracts', compact('budget', 'costData'));
+    }
+
+    public function amendments(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load(['categories.children.children.items', 'categories.children.items', 'categories.items']);
+        $costData = $this->buildCostData($budget);
+        return view('budgets.amendments', compact('budget', 'costData'));
+    }
+
+    public function changeOrders(Budget $budget): View|RedirectResponse
+    {
+        $this->authorizeBudget($budget);
+        if ($budget->project_id != session('current_project_id')) {
+            return redirect()->route('budgets.index')->with('info', __('Project switched.'));
+        }
+        $budget->load(['categories.children.children.items', 'categories.children.items', 'categories.items']);
+        $costData = $this->buildCostData($budget);
+        return view('budgets.change_orders', compact('budget', 'costData'));
+    }
+
+    private function buildCostData(Budget $budget): \Illuminate\Support\Collection
+    {
+        $allItemIds = collect();
+        $flatten = function ($categories) use (&$flatten, &$allItemIds) {
+            foreach ($categories as $cat) {
+                $allItemIds = $allItemIds->merge($cat->items->pluck('id'));
+                if ($cat->children->isNotEmpty()) {
+                    $flatten($cat->children);
+                }
+            }
+        };
+        $flatten($budget->categories);
+
+        $contractItems = ContractItem::whereIn('budget_item_id', $allItemIds)
+            ->with(['contract', 'invoiceItems.invoice', 'changeOrderItems', 'amendmentItems'])
+            ->get();
+
+        $ciIds       = $contractItems->pluck('id');
+        $contractIds = $contractItems->pluck('contract_id')->unique()->values();
+
+        $latestAnticipatedIds = ContractAnticipated::whereIn('contract_id', $contractIds)
+            ->orderByDesc('date')->orderByDesc('id')
+            ->get()
+            ->groupBy('contract_id')
+            ->map(fn ($g) => $g->first()->id);
+
+        $anticipatedByContractItem = ContractAnticipatedItem::whereIn('contract_anticipated_id', $latestAnticipatedIds->values())
+            ->whereIn('contract_item_id', $ciIds)
+            ->get()
+            ->groupBy('contract_item_id')
+            ->map(fn ($items) => (float) $items->sum('amount'));
+
+        $crByContractItem = ChangeRequestItem::whereIn('contract_item_id', $ciIds)
+            ->whereHas('changeRequest', fn ($q) => $q->whereIn('status', ['open', 'closed']))
+            ->with('latestRevision')
+            ->get()
+            ->groupBy('contract_item_id')
+            ->map(fn ($items) => (float) $items->sum(
+                fn ($i) => (float) ($i->latestRevision?->amount_report ?? 0)
+            ));
+
+        $costData = collect();
+        foreach ($contractItems->groupBy('budget_item_id') as $itemId => $items) {
+            $contracts  = (float) $items->sum('amount');
+            $changesCo  = (float) $items->sum(fn ($ci) => $ci->changeOrderItems->sum('amount'));
+            $changesAmd = (float) $items->sum(fn ($ci) => $ci->amendmentItems->sum('amount'));
+            $invoiced   = (float) $items->sum(fn ($ci) => $ci->invoiceItems->sum('amount'));
+
+            $fxImpact = 0.0;
+            foreach ($items as $ci) {
+                $contractRate = (float) ($ci->contract->fx_rate ?? 0);
+                if (!$contractRate) continue;
+                foreach ($ci->invoiceItems as $ii) {
+                    $invoiceRate = (float) ($ii->invoice->fx_rate ?? $contractRate);
+                    if (!$invoiceRate) continue;
+                    $fxImpact += (float) $ii->amount / $invoiceRate
+                               - (float) $ii->amount / $contractRate;
+                }
+            }
+
+            $anticipatedCa = 0.0;
+            $anticipatedCr = 0.0;
+            foreach ($items as $ci) {
+                if (isset($anticipatedByContractItem[$ci->id])) {
+                    $anticipatedCa += (float) $anticipatedByContractItem[$ci->id];
+                } else {
+                    $anticipatedCa += (float) $ci->amount
+                                    + (float) $ci->changeOrderItems->sum('amount')
+                                    + (float) $ci->amendmentItems->sum('amount');
+                }
+                $anticipatedCr += $crByContractItem->get($ci->id, 0.0);
+            }
+
+            $costData[$itemId] = [
+                'contracts'   => $contracts,
+                'changes_co'  => $changesCo,
+                'changes_amd' => $changesAmd,
+                'invoiced'    => $invoiced,
+                'fx_impact'   => $fxImpact,
+                'anticipated_ca' => $anticipatedCa,
+                'anticipated_cr' => $anticipatedCr,
+            ];
+        }
+
+        return $costData;
     }
 
     public function destroy(Budget $budget): RedirectResponse

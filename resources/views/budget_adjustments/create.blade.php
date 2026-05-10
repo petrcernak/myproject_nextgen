@@ -4,7 +4,8 @@
 @section('content')
 <div class="breadcrumb">
     <a href="{{ route('budgets.index') }}">{{ __('Budgets') }}</a>
-    <a href="{{ route('budgets.show', $budget) }}"><span>{{ $budget->name }}</span></a>
+    <a href="{{ route('budgets.show', $budget) }}">{{ $budget->name }}</a>
+    <a href="{{ route('budgets.adjustments.index', $budget) }}">{{ __('Adjustments') }}</a>
     <span>{{ __('New adjustment') }}</span>
 </div>
 <div class="page-header">
@@ -50,7 +51,7 @@
 
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ __('Save adjustment') }}</button>
-        <a href="{{ route('budgets.show', $budget) }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
+        <a href="{{ route('budgets.adjustments.index', $budget) }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
     </div>
 </form>
 @endsection

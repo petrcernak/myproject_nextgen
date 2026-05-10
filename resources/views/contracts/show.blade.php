@@ -33,6 +33,46 @@
     </div>
 </div>
 
+{{-- Budget links bar --}}
+@php
+    $allLinked = $contract->items->isNotEmpty() && $contract->items->every(fn($i) => $i->budget_item_id !== null);
+    $anyLinked = $contract->items->contains(fn($i) => $i->budget_item_id !== null);
+@endphp
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;padding:.5rem .75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:12px">
+    <span style="color:#6b7280;font-weight:600;margin-right:.25rem">{{ __('Budget links:') }}</span>
+
+    @if($contract->budgetLinks->isEmpty())
+        <span style="color:#f59e0b;font-weight:500">{{ __('No budget linked') }}</span>
+    @else
+        @foreach($contract->budgetLinks as $bl)
+            @php
+                $blLinkedCount = $contract->items->filter(fn($ci) =>
+                    $ci->budget_item_id && $bl->budget->categories->flatMap(fn($c) =>
+                        $c->items->merge($c->children->flatMap(fn($cc) =>
+                            $cc->items->merge($cc->children->flatMap->items)
+                        ))
+                    )->contains('id', $ci->budget_item_id)
+                )->count();
+            @endphp
+            <a href="{{ route('contract-budget-links.show', $bl) }}"
+               style="display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .6rem;border-radius:999px;text-decoration:none;font-weight:600;background:{{ $blLinkedCount >= $contract->items->count() && $contract->items->count() > 0 ? '#d1fae5' : '#fef3c7' }};color:{{ $blLinkedCount >= $contract->items->count() && $contract->items->count() > 0 ? '#065f46' : '#92400e' }};border:1px solid {{ $blLinkedCount >= $contract->items->count() && $contract->items->count() > 0 ? '#a7f3d0' : '#fde68a' }}">
+                <span style="font-size:10px">{{ $blLinkedCount >= $contract->items->count() && $contract->items->count() > 0 ? '●' : '●' }}</span>
+                {{ $bl->budget->name }}
+                @if($bl->fx_rate)
+                    <span style="font-weight:400;opacity:.75">{{ number_format($bl->fx_rate, 2, '.', '') }}</span>
+                @endif
+            </a>
+        @endforeach
+    @endif
+
+    @if($canEdit)
+        <a href="{{ route('contracts.budget-links.create', $contract) }}"
+           style="display:inline-flex;align-items:center;gap:.25rem;padding:.25rem .5rem;border-radius:999px;font-size:11px;color:#6b7280;border:1px dashed #d1d5db;text-decoration:none">
+            + {{ __('Link budget') }}
+        </a>
+    @endif
+</div>
+
 @php
     $hasCos        = $contract->changeOrders->isNotEmpty();
     $hasAmendments = $contract->amendments->isNotEmpty();
