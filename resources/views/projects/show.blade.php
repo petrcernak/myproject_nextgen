@@ -9,6 +9,7 @@
 
 <div class="page-header">
     <h1>{{ $project->name }} <code style="font-size:.8em;color:#6b7280">{{ $project->code }}</code></h1>
+    @if(auth()->user()->isGroupAdmin())
     <div style="display:flex;gap:.5rem">
         <a href="{{ route('projects.edit', $project) }}" class="btn btn-secondary">{{ __('Edit') }}</a>
         @if($project->isDeletable())
@@ -18,6 +19,7 @@
             </form>
         @endif
     </div>
+    @endif
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;margin-bottom:1.5rem">
@@ -32,7 +34,7 @@
 
 <div class="page-header" style="margin-bottom:.75rem">
     <h2 style="font-size:1rem">{{ __('Budgets') }}</h2>
-    <a href="{{ route('projects.budgets.create', $project) }}" class="btn btn-primary btn-sm">+ {{ __('New budget') }}</a>
+    @if($canEdit)<a href="{{ route('projects.budgets.create', $project) }}" class="btn btn-primary btn-sm">+ {{ __('New budget') }}</a>@endif
 </div>
 <div class="card" style="margin-bottom:1.5rem">
     @php $budgets = $project->budgets ?? $project->budgets()->get(); @endphp
@@ -48,7 +50,7 @@
                     <td><a href="{{ route('budgets.show', $budget) }}">{{ $budget->name }}</a></td>
                     <td>{{ $budget->date?->format('d.m.Y') ?? '—' }}</td>
                     <td style="text-align:right">{{ number_format($budget->total, 2, ',', ' ') }}</td>
-                    <td style="text-align:right"><a href="{{ route('budgets.edit', $budget) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a></td>
+                    <td style="text-align:right">@if($canEdit)<a href="{{ route('budgets.edit', $budget) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>@endif</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -58,7 +60,7 @@
 
 <div class="page-header">
     <h2 style="font-size:1rem">{{ __('Contracts') }}</h2>
-    <a href="{{ route('projects.contracts.create', $project) }}" class="btn btn-primary btn-sm">+ {{ __('New contract') }}</a>
+    @if($canEdit)<a href="{{ route('projects.contracts.create', $project) }}" class="btn btn-primary btn-sm">+ {{ __('New contract') }}</a>@endif
 </div>
 <div class="card">
     @if($project->contracts->isEmpty())
@@ -77,7 +79,7 @@
                     <td>{{ $contract->direction === 1 ? __('Income') : __('Expense') }}</td>
                     <td>{{ $contract->currency }}</td>
                     <td>{{ $contract->date?->format('d.m.Y') ?? '—' }}</td>
-                    <td style="text-align:right"><a href="{{ route('contracts.edit', $contract) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a></td>
+                    <td style="text-align:right">@if($canEdit)<a href="{{ route('contracts.edit', $contract) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>@endif</td>
                 </tr>
                 @endforeach
             </tbody>

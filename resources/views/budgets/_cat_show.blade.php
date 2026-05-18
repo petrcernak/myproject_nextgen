@@ -31,7 +31,11 @@
         <div style="display:flex;gap:0;font-size:12px;font-weight:600;flex-shrink:0">
             @foreach($cw as $i => $width)
                 @php $v = $catVals[$i]; @endphp
-                @if(in_array($i, $signIdx))
+                @if($i === 13)
+                    <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;color:{{ $v > 0 ? '#dc2626' : ($v < 0 ? '#1d4ed8' : '#374151') }}">
+                        {{ $v != 0 ? ($v > 0 ? '+' : '').number_format(round($v),0,',',' ') : '—' }}
+                    </span>
+                @elseif(in_array($i, $signIdx))
                     <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;color:{{ $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af') }}">
                         {{ $v != 0 ? ($v > 0 ? '+' : '').number_format(round($v),0,',',' ') : '—' }}
                     </span>
@@ -62,8 +66,44 @@
                     </div>
                     <div style="display:flex;gap:0;flex-shrink:0">
                         @foreach($cw as $i => $width)
-                            @php $v = $itemVals[$i]; @endphp
-                            @if(in_array($i, $signIdx))
+                            @php
+                                $v            = $itemVals[$i];
+                                $adjLink          = $i === 1;
+                                $transLink        = $i === 2;
+                                $commitLink       = in_array($i,[4,5,6]);
+                                $invoicedLink     = $i === 7;
+                                $vtpLink          = $i === 9;
+                                $anticipatedLink  = $i === 10;
+                            @endphp
+                            @if($adjLink)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;font-weight:{{ $v != 0 ? '600' : '400' }};color:{{ $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af') }}">
+                                    @if($v != 0)<a href="{{ route('budget-items.adjustments', $item) }}" style="color:inherit;text-decoration:none">{{ ($v > 0 ? '+' : '').number_format(round($v),0,',',' ') }}</a>@else—@endif
+                                </span>
+                            @elseif($transLink)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;font-weight:{{ $v != 0 ? '600' : '400' }};color:{{ $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af') }}">
+                                    @if($v != 0)<a href="{{ route('budget-items.transfers', $item) }}" style="color:inherit;text-decoration:none">{{ ($v > 0 ? '+' : '').number_format(round($v),0,',',' ') }}</a>@else—@endif
+                                </span>
+                            @elseif($commitLink)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;color:{{ $v < 0 ? '#dc2626' : '#374151' }};font-weight:{{ $i === 6 ? '600' : '400' }}">
+                                    @if($v != 0)<a href="{{ route('budget-items.commitments', $item) }}" style="color:inherit;text-decoration:none">{{ number_format(round($v),0,',',' ') }}</a>@else—@endif
+                                </span>
+                            @elseif($invoicedLink)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;color:#374151;font-weight:400">
+                                    @if($v != 0)<a href="{{ route('budget-items.invoiced', $item) }}" style="color:inherit;text-decoration:none">{{ number_format(round($v),0,',',' ') }}</a>@else—@endif
+                                </span>
+                            @elseif($vtpLink)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;color:#374151;font-weight:400">
+                                    <a href="{{ route('budget-items.value-to-place', $item) }}" style="color:inherit;text-decoration:none">{{ $v != 0 ? number_format(round($v),0,',',' ') : '—' }}</a>
+                                </span>
+                            @elseif($anticipatedLink)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;color:#374151;font-weight:400">
+                                    <a href="{{ route('budget-items.anticipated', $item) }}" style="color:inherit;text-decoration:none">{{ $v != 0 ? number_format(round($v),0,',',' ') : '—' }}</a>
+                                </span>
+                            @elseif($i === 13)
+                                <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;font-weight:{{ $v != 0 ? '600' : '400' }};color:{{ $v > 0 ? '#dc2626' : ($v < 0 ? '#1d4ed8' : '#374151') }}">
+                                    {{ $v != 0 ? ($v > 0 ? '+' : '').number_format(round($v),0,',',' ') : '—' }}
+                                </span>
+                            @elseif(in_array($i, $signIdx))
                                 <span style="min-width:{{ $width }}px;text-align:right;padding-right:6px;font-weight:{{ $v != 0 ? '600' : '400' }};color:{{ $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af') }}">
                                     {{ $v != 0 ? ($v > 0 ? '+' : '').number_format(round($v),0,',',' ') : '—' }}
                                 </span>

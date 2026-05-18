@@ -4,7 +4,7 @@
 @section('content')
 <div class="page-header">
     <h1>{{ __('Companies') }}</h1>
-    <a href="{{ route('companies.create') }}" class="btn btn-primary">+ {{ __('New company') }}</a>
+    @if($canEdit)<a href="{{ route('companies.create') }}" class="btn btn-primary">+ {{ __('New company') }}</a>@endif
 </div>
 
 <div class="card">
@@ -32,7 +32,7 @@
                     <td>{{ $company->email ?? '—' }}</td>
                     <td>{{ $company->phone ?? '—' }}</td>
                     <td style="text-align:right">
-                        <a href="{{ route('companies.edit', $company) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>
+                        @if($canEdit)<a href="{{ route('companies.edit', $company) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>@endif
                     </td>
                 </tr>
                 @endforeach

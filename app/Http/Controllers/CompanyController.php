@@ -21,7 +21,9 @@ class CompanyController extends Controller
             ->orderBy('name')
             ->paginate(25);
 
-        return view('companies.index', compact('companies'));
+        $canEdit = $this->currentUser()->canCreateProject();
+
+        return view('companies.index', compact('companies', 'canEdit'));
     }
 
     public function create(): View

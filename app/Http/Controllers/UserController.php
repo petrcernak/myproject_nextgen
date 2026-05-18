@@ -34,6 +34,11 @@ class UserController extends Controller
         return view('users.form');
     }
 
+    private function allowedLevels(): array
+    {
+        return $this->currentUser()->isSuperAdmin() ? [1, 5, 7, 9] : [1, 5, 7];
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $this->authorizeGroupAdmin();
@@ -43,7 +48,7 @@ class UserController extends Controller
             'username'  => ['required', 'string', 'max:100', 'unique:users,username'],
             'email'     => ['nullable', 'email', 'max:255'],
             'password'  => ['required', 'string', 'min:8'],
-            'level'     => ['required', 'integer', 'in:1,5,7'],
+            'level'     => ['required', 'integer', \Illuminate\Validation\Rule::in($this->allowedLevels())],
             'active'    => ['boolean'],
         ]);
 
@@ -63,13 +68,20 @@ class UserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $this->authorizeGroupAdmin($user);
+        $me = $this->currentUser();
+
+        // Prevent a super admin from demoting themselves — they'd be immediately locked out
+        if ($user->id === $me->id && $me->isSuperAdmin() && (int) $request->input('level') < 9) {
+            return back()->withErrors(['level' => __('You cannot demote your own super admin account.')]);
+        }
+
         $data = $request->validate([
             'firstname' => ['required', 'string', 'max:100'],
             'surname'   => ['required', 'string', 'max:100'],
             'username'  => ['required', 'string', 'max:100', 'unique:users,username,' . $user->id],
             'email'     => ['nullable', 'email', 'max:255'],
             'password'  => ['nullable', 'string', 'min:8'],
-            'level'     => ['required', 'integer', 'in:1,5,7'],
+            'level'     => ['required', 'integer', \Illuminate\Validation\Rule::in($this->allowedLevels())],
             'active'    => ['boolean'],
         ]);
 

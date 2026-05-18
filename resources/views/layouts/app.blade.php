@@ -21,7 +21,7 @@
         .navbar .user strong { color: #e2e8f0; }
 
         /* Layout */
-        .page { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+        .page { padding: 1rem 1.5rem; }
         .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
         .page-header h1 { font-size: 1.25rem; font-weight: 600; }
 
@@ -171,11 +171,13 @@
                     </button>
                 </form>
             @endforeach
+            @if(auth()->user()->canCreateProject())
             <div style="border-top:1px solid #334155;margin-top:.25rem;padding-top:.25rem">
                 <a href="{{ route('projects.index') }}" class="project-option" style="font-size:12px;color:#94a3b8">
                     {{ __('+ Manage projects') }}
                 </a>
             </div>
+            @endif
         </div>
     </div>
 
@@ -202,7 +204,9 @@
         <a href="{{ route('budgets.index') }}" class="{{ request()->routeIs('budgets.*') ? 'active' : '' }}">{{ __('Budgets') }}</a>
         <a href="{{ route('files.index') }}" class="{{ request()->routeIs('files.index') ? 'active' : '' }}">{{ __('Files') }}</a>
         <a href="{{ route('companies.index') }}" class="{{ request()->routeIs('companies.*') ? 'active' : '' }}">{{ __('Companies') }}</a>
+        @if(auth()->user()->canCreateProject())
         <a href="{{ route('projects.index') }}" class="{{ request()->routeIs('projects.*') ? 'active' : '' }}">{{ __('Projects') }}</a>
+        @endif
         @if(auth()->user()->isGroupAdmin())
             <a href="{{ route('users.index') }}" class="{{ request()->routeIs('users.*') ? 'active' : '' }}">{{ __('Users') }}</a>
             <a href="{{ route('activity-log.index') }}" class="{{ request()->routeIs('activity-log.*') ? 'active' : '' }}">{{ __('Activity log') }}</a>

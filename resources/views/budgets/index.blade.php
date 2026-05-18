@@ -4,7 +4,7 @@
 @section('content')
 <div class="page-header">
     <h1>{{ __('Budgets') }} — {{ $currentProject->name }}</h1>
-    @if($currentProject)
+    @if($currentProject && $canEdit)
         <a href="{{ route('projects.budgets.create', $currentProject) }}" class="btn btn-primary">+ {{ __('New budget') }}</a>
     @endif
 </div>
@@ -24,7 +24,7 @@
                     <td><a href="{{ route('budgets.show', $budget) }}">{{ $budget->name }}</a></td>
                     <td>{{ $budget->date?->format('d.m.Y') ?? '—' }}</td>
                     <td style="text-align:right">{{ number_format($budget->total, 2, ',', ' ') }}</td>
-                    <td style="text-align:right"><a href="{{ route('budgets.edit', $budget) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a></td>
+                    <td style="text-align:right">@if($canEdit)<a href="{{ route('budgets.edit', $budget) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>@endif</td>
                 </tr>
                 @endforeach
             </tbody>

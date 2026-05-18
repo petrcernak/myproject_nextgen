@@ -36,6 +36,7 @@
     $colFmt = fn($v) => number_format(round($v), 0, ',', ' ');
     $colSign = fn($v) => ($v > 0 ? '+' : '').number_format(round($v), 0, ',', ' ');
     $colColor = fn($v) => $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af');
+    $colColorDelta = fn($v) => $v > 0 ? '#dc2626' : ($v < 0 ? '#1d4ed8' : '#374151');
 
     $itemCostData = function($item) use ($costData): array {
         $d          = $costData->get($item->id, []);
@@ -52,11 +53,12 @@
         $fxImpact   = (float) ($d['fx_impact'] ?? 0);
         $antCa      = (float) ($d['anticipated_ca'] ?? 0);
         $antCr      = (float) ($d['anticipated_cr'] ?? 0);
-        $antManual  = (float) $item->anticipated_manual;
+        $antManual  = (float) ($d['ant_manual_sum'] ?? 0);
         $anticipated = $antCa + $antCr + $antManual;
-        $vtp        = $item->value_to_place_manual !== null
-            ? (float) $item->value_to_place_manual
-            : max(0.0, $actual - $currComm - $anticipated - $fxImpact);
+        $vtpManualSum    = (float) ($d['vtp_manual_sum'] ?? 0);
+        $vtpAutoEnabled  = (bool) ($d['vtp_auto'] ?? true);
+        $vtpAutoResidual = $vtpAutoEnabled ? max(0.0, $actual - $currComm - $anticipated - $fxImpact - $vtpManualSum) : 0.0;
+        $vtp        = $vtpManualSum + $vtpAutoResidual;
         $futureComm = $vtp + $anticipated;
         $cost       = $currComm + $futureComm + $fxImpact;
         $delta      = $cost - $actual;
@@ -90,7 +92,8 @@
     }
     $fmt = fn($v) => number_format(round($v), 0, ',', ' ');
     $sgn = fn($v) => ($v != 0 ? ($v > 0 ? '+' : '').number_format(round($v), 0, ',', ' ') : '—');
-    $cc  = fn($v) => $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af');
+    $cc      = fn($v) => $v > 0 ? '#1d4ed8' : ($v < 0 ? '#dc2626' : '#9ca3af');
+    $ccDelta = fn($v) => $v > 0 ? '#dc2626' : ($v < 0 ? '#1d4ed8' : '#374151');
 @endphp
 
 {{-- Budget tiles --}}
@@ -181,7 +184,7 @@
         <div style="font-size:1.6rem;font-weight:700">{{ $fmt($grand['cost']) }}</div>
         <div style="margin-top:.75rem;padding-top:.5rem;border-top:1px solid #dbeafe">
             <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">{{ __('Delta') }}</div>
-            <div style="font-size:1.4rem;font-weight:700;color:{{ $cc($grand['delta']) }}">
+            <div style="font-size:1.4rem;font-weight:700;color:{{ $ccDelta($grand['delta']) }}">
                 {{ $grand['delta'] != 0 ? $sgn($grand['delta']) : '—' }}
             </div>
         </div>
@@ -216,7 +219,7 @@ $cols = [
         <div style="flex:1;min-width:300px;font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em">
             {{ __('Item') }}
         </div>
-        @foreach($cols as [$label, $w])
+        @foreach($cols as $i => [$label, $w])
         <span style="min-width:{{ $w }}px;text-align:right;padding-right:6px;font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">
             {{ __($label) }}
         </span>
@@ -241,7 +244,7 @@ $cols = [
         @php $gv = [$grand['amount'],$grand['adj'],$grand['trans'],$grand['actual'],$grand['contracts'],$grand['changes'],$grand['currComm'],$grand['invoiced'],$grand['fxImpact'],$grand['vtp'],$grand['anticipated'],$grand['futureComm'],$grand['cost'],$grand['delta']]; @endphp
         @foreach($cols as $i => [$label, $w])
         @php $v = $gv[$i]; @endphp
-        <span style="min-width:{{ $w }}px;text-align:right;padding-right:6px;color:{{ in_array($label,['Adjustment','Transfer','FX Impact','△']) ? ($colColor($v)) : ($v < 0 ? '#dc2626' : 'inherit') }}">
+        <span style="min-width:{{ $w }}px;text-align:right;padding-right:6px;color:{{ $label === '△' ? $colColorDelta($v) : (in_array($label,['Adjustment','Transfer','FX Impact']) ? $colColor($v) : ($v < 0 ? '#dc2626' : 'inherit')) }}">
             {{ $v != 0 ? $colFmt($v) : '—' }}
         </span>
         @endforeach

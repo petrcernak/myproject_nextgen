@@ -58,6 +58,9 @@
                     <option value="1" @selected(old('level', $user->level ?? 1) == 1)>{{ __('Member') }}</option>
                     <option value="5" @selected(old('level', $user->level ?? 1) == 5)>{{ __('Project creator') }}</option>
                     <option value="7" @selected(old('level', $user->level ?? 1) == 7)>{{ __('Group admin') }}</option>
+                    @if(auth()->user()->isSuperAdmin())
+                        <option value="9" @selected(old('level', $user->level ?? 1) == 9)>{{ __('Super admin') }}</option>
+                    @endif
                 </select>
                 @error('level')<span class="form-error">{{ $message }}</span>@enderror
             </div>

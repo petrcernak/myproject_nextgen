@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BudgetItem extends Model
 {
-    protected $fillable = ['budget_category_id', 'code', 'description', 'amount', 'sort'];
+    protected $fillable = ['budget_category_id', 'code', 'description', 'amount', 'sort', 'vtp_auto'];
 
     public function category(): BelongsTo
     {
@@ -51,5 +51,15 @@ class BudgetItem extends Model
     public function getActualBudgetAttribute(): float
     {
         return $this->amount + $this->adjustment + $this->transfer;
+    }
+
+    public function vtpEntries(): HasMany
+    {
+        return $this->hasMany(BudgetItemVtp::class);
+    }
+
+    public function anticipatedEntries(): HasMany
+    {
+        return $this->hasMany(BudgetAnticipatedEntry::class);
     }
 }

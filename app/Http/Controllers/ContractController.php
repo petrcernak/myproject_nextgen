@@ -54,7 +54,10 @@ class ContractController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        return view('contracts.index', compact('contracts', 'currencies', 'companies'));
+        $currentProject = \App\Models\Project::find($projectId);
+        $canEdit = $currentProject && $this->currentUser()->canWrite($currentProject);
+
+        return view('contracts.index', compact('contracts', 'currencies', 'companies', 'canEdit'));
     }
 
     public function show(Contract $contract): View|RedirectResponse

@@ -21,15 +21,17 @@ class ProjectController extends Controller
             ->orderBy('name')
             ->paginate(25);
 
-        return view('projects.index', compact('projects'));
+        return view('projects.index', compact('projects', 'user'));
     }
 
     public function show(Project $project): View
     {
         abort_unless($project->id_group == $this->currentGroupId(), 403);
-        abort_unless($this->currentUser()->canRead($project), 403);
+        $user = $this->currentUser();
+        abort_unless($user->canRead($project), 403);
         $project->load(['company', 'contracts.company', 'budgets']);
-        return view('projects.show', compact('project'));
+        $canEdit = $user->canWrite($project);
+        return view('projects.show', compact('project', 'canEdit'));
     }
 
     public function create(): View

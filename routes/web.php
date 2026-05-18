@@ -203,7 +203,6 @@ Route::middleware('auth')->group(function () {
     Route::get('budgets/{budget}', [\App\Http\Controllers\BudgetController::class, 'show'])->name('budgets.show');
     Route::get('budgets/{budget}/content', [\App\Http\Controllers\BudgetController::class, 'editContent'])->name('budgets.content');
     Route::get('budgets/{budget}/anticipated',          [\App\Http\Controllers\BudgetController::class, 'anticipated'])->name('budgets.anticipated');
-    Route::post('budgets/{budget}/anticipated',         [\App\Http\Controllers\BudgetController::class, 'saveAnticipated'])->name('budgets.anticipated.save');
     Route::get('budgets/{budget}/value-to-place',       [\App\Http\Controllers\BudgetController::class, 'valueToPlace'])->name('budgets.value-to-place');
     Route::post('budgets/{budget}/value-to-place',      [\App\Http\Controllers\BudgetController::class, 'saveValueToPlace'])->name('budgets.value-to-place.save');
     Route::get('budgets/{budget}/contract-anticipated', [\App\Http\Controllers\BudgetController::class, 'contractAnticipated'])->name('budgets.contract-anticipated');
@@ -219,6 +218,19 @@ Route::middleware('auth')->group(function () {
     Route::post('budget-categories/{category}/items', [\App\Http\Controllers\BudgetController::class, 'storeItem'])->name('budget-categories.items.store');
     Route::get('budget-categories/{category}/edit', [\App\Http\Controllers\BudgetController::class, 'editCategory'])->name('budget-categories.edit');
     Route::put('budget-categories/{category}', [\App\Http\Controllers\BudgetController::class, 'updateCategory'])->name('budget-categories.update');
+    Route::get('budget-items/{item}/anticipated',     [\App\Http\Controllers\BudgetController::class, 'itemAnticipated'])->name('budget-items.anticipated');
+    Route::post('budget-items/{item}/anticipated',    [\App\Http\Controllers\BudgetController::class, 'storeItemAnticipated'])->name('budget-items.anticipated.store');
+    Route::put('budget-anticipated-entries/{entry}',  [\App\Http\Controllers\BudgetController::class, 'updateItemAnticipated'])->name('budget-anticipated-entries.update');
+    Route::delete('budget-anticipated-entries/{entry}',[\App\Http\Controllers\BudgetController::class, 'destroyItemAnticipated'])->name('budget-anticipated-entries.destroy');
+    Route::get('budget-items/{item}/transfers',     [\App\Http\Controllers\BudgetController::class, 'itemTransfers'])->name('budget-items.transfers');
+    Route::get('budget-items/{item}/adjustments',   [\App\Http\Controllers\BudgetController::class, 'itemAdjustments'])->name('budget-items.adjustments');
+    Route::get('budget-items/{item}/commitments',   [\App\Http\Controllers\BudgetController::class, 'itemCommitments'])->name('budget-items.commitments');
+    Route::get('budget-items/{item}/invoiced',      [\App\Http\Controllers\BudgetController::class, 'itemInvoiced'])->name('budget-items.invoiced');
+    Route::get('budget-items/{item}/value-to-place',    [\App\Http\Controllers\BudgetController::class, 'itemValueToPlace'])->name('budget-items.value-to-place');
+    Route::post('budget-items/{item}/value-to-place',   [\App\Http\Controllers\BudgetController::class, 'storeItemVtp'])->name('budget-items.vtp.store');
+    Route::post('budget-items/{item}/vtp-auto',         [\App\Http\Controllers\BudgetController::class, 'toggleItemVtpAuto'])->name('budget-items.vtp-auto.toggle');
+    Route::put('budget-item-vtps/{vtp}',                [\App\Http\Controllers\BudgetController::class, 'updateItemVtp'])->name('budget-item-vtps.update');
+    Route::delete('budget-item-vtps/{vtp}',             [\App\Http\Controllers\BudgetController::class, 'destroyItemVtp'])->name('budget-item-vtps.destroy');
     Route::get('budget-items/{item}/edit', [\App\Http\Controllers\BudgetController::class, 'editItem'])->name('budget-items.edit');
     Route::put('budget-items/{item}', [\App\Http\Controllers\BudgetController::class, 'updateItem'])->name('budget-items.update');
     Route::delete('budget-items/{item}', [\App\Http\Controllers\BudgetController::class, 'destroyItem'])->name('budget-items.destroy');

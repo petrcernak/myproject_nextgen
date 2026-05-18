@@ -4,7 +4,7 @@
 @section('content')
 <div class="page-header">
     <h1>{{ __('Projects') }}</h1>
-    <a href="{{ route('projects.create') }}" class="btn btn-primary">+ {{ __('New project') }}</a>
+    @if($user->canCreateProject())<a href="{{ route('projects.create') }}" class="btn btn-primary">+ {{ __('New project') }}</a>@endif
 </div>
 
 <div class="card">
@@ -50,7 +50,7 @@
                     </td>
                     <td>{{ $project->contracts_count ?? $project->contracts()->count() }}</td>
                     <td style="text-align:right">
-                        <a href="{{ route('projects.edit', $project) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>
+                        @if($user->isGroupAdmin())<a href="{{ route('projects.edit', $project) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>@endif
                     </td>
                 </tr>
                 @endforeach
