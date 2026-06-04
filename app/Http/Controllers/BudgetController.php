@@ -47,15 +47,17 @@ class BudgetController extends Controller
                 ->with('error', __('Please select a project first.'));
         }
 
+        $totalCount = Budget::where('project_id', $projectId)->count();
+
         $budgets = Budget::where('project_id', $projectId)
             ->orderByDesc('created_at')
-            ->paginate(25)
+            ->paginate(20)
             ->withQueryString();
 
         $currentProject = \App\Models\Project::find($projectId);
         $canEdit = $currentProject && $this->currentUser()->canWrite($currentProject);
 
-        return view('budgets.index', compact('budgets', 'canEdit'));
+        return view('budgets.index', compact('budgets', 'canEdit', 'totalCount', 'currentProject'));
     }
 
     public function show(Budget $budget): View|RedirectResponse

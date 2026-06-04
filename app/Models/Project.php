@@ -10,12 +10,17 @@ use App\Models\Budget;
 class Project extends Model
 {
     protected $fillable = [
-        'code', 'name', 'status', 'note', 'id_company', 'id_group', 'active',
+        'code', 'name', 'status', 'note', 'id_company', 'id_group', 'locality_id', 'active',
     ];
 
     protected function casts(): array
     {
         return ['active' => 'boolean'];
+    }
+
+    public function locality(): BelongsTo
+    {
+        return $this->belongsTo(Locality::class);
     }
 
     public function group(): BelongsTo

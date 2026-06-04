@@ -23,7 +23,7 @@
                 <th>{{ __('Email') }}</th>
                 <th>{{ __('Level') }}</th>
                 <th style="text-align:center">{{ __('Active') }}</th>
-                <th style="width:160px"></th>
+                <th style="width:220px"></th>
             </tr>
         </thead>
         <tbody>
@@ -45,15 +45,28 @@
                 </td>
                 <td style="text-align:center">{{ $user->active ? '✓' : '—' }}</td>
                 <td>
-                    <div style="display:flex;gap:.3rem;justify-content:flex-end">
+                    <div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap">
                         <a href="{{ route('users.rights', $user) }}" class="btn btn-secondary btn-sm">{{ __('Rights') }}</a>
                         <a href="{{ route('users.edit', $user) }}" class="btn btn-secondary btn-sm">{{ __('Edit') }}</a>
+                        <button type="button" onclick="toggleResetPw({{ $user->id }})"
+                            class="btn btn-secondary btn-sm">{{ __('Reset pw') }}</button>
                         @if($user->id !== auth()->id())
                         <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('{{ __('Really delete?') }}')">
                             @csrf @method('DELETE')
                             <button class="btn btn-danger btn-sm">✕</button>
                         </form>
                         @endif
+                    </div>
+                    <div id="reset-pw-{{ $user->id }}" style="display:none;margin-top:.4rem">
+                        <form method="POST" action="{{ route('users.reset-password', $user) }}"
+                            style="display:flex;gap:.3rem;align-items:center">
+                            @csrf
+                            <input type="password" name="password" placeholder="{{ __('New password') }}"
+                                minlength="8" required style="width:150px;font-size:12px;padding:.25rem .5rem">
+                            <button type="submit" class="btn btn-primary btn-sm">{{ __('Set') }}</button>
+                            <button type="button" onclick="toggleResetPw({{ $user->id }})"
+                                class="btn btn-secondary btn-sm">{{ __('Cancel') }}</button>
+                        </form>
                     </div>
                 </td>
             </tr>
@@ -63,3 +76,12 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function toggleResetPw(id) {
+    const el = document.getElementById('reset-pw-' + id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+@endpush

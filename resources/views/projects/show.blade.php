@@ -26,6 +26,7 @@
     <div class="card card-body">
         <table style="font-size:13px">
             <tr><td style="color:#6b7280;padding:.3rem .5rem .3rem 0;border:none">{{ __('Company') }}</td><td style="border:none">{{ $project->company?->name ?? '—' }}</td></tr>
+            <tr><td style="color:#6b7280;padding:.3rem .5rem .3rem 0;border:none">{{ __('Locality') }}</td><td style="border:none">{{ $project->locality?->name ?? '—' }}</td></tr>
             <tr><td style="color:#6b7280;padding:.3rem .5rem .3rem 0;border:none">{{ __('Status') }}</td><td style="border:none">{{ ucfirst($project->status) }}</td></tr>
             <tr><td style="color:#6b7280;padding:.3rem .5rem;border:none;vertical-align:top">{{ __('Note') }}</td><td style="border:none">{{ $project->note ?? '—' }}</td></tr>
         </table>

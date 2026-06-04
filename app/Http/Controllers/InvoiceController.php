@@ -51,15 +51,19 @@ class InvoiceController extends Controller
             ->when($request->file_filter === '0', fn ($q) => $q->doesntHave('files'))
             ->when($request->file_filter === '1', fn ($q) => $q->has('files'))
             ->orderByDesc('issued')
-            ->paginate(50)
+            ->paginate(20)
             ->withQueryString();
+
+        $totalCount = Invoice::whereIn('contract_id', $contractIds)
+            ->when($request->filled('advance'), fn ($q) => $q->where('is_advance', $request->advance === '1'))
+            ->count();
 
         $selectedContract = $request->contract_id
             ? $contracts->firstWhere('id', $request->contract_id)
             : null;
         $isAdvanceList = $request->filled('advance') && $request->advance === '1';
 
-        return view('invoices.index', compact('invoices', 'contracts', 'companies', 'selectedContract', 'isAdvanceList'));
+        return view('invoices.index', compact('invoices', 'contracts', 'companies', 'selectedContract', 'isAdvanceList', 'totalCount'));
     }
 
     public function show(Invoice $invoice): View

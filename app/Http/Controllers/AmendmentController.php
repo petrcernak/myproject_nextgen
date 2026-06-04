@@ -37,17 +37,20 @@ class AmendmentController extends Controller
         $companies  = Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->orderBy('name')->pluck('name', 'id');
         $currencies = $contracts->pluck('currency')->unique()->sort()->values();
 
+        $contractIds = $contracts->pluck('id');
+        $totalCount  = Amendment::whereIn('contract_id', $contractIds)->count();
+
         $amendments = Amendment::with(['contract.company', 'items', 'changeOrders.items'])
-            ->whereIn('contract_id', $contracts->pluck('id'))
+            ->whereIn('contract_id', $contractIds)
             ->when($request->contract_id, fn ($q) => $q->where('contract_id', $request->contract_id))
             ->when($request->company_id,  fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('company_id', $request->company_id)))
             ->when($request->currency,    fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('currency', $request->currency)))
             ->when($request->date_from,   fn ($q) => $q->where('date', '>=', $request->date_from))
             ->when($request->date_to,     fn ($q) => $q->where('date', '<=', $request->date_to))
             ->orderByDesc('date')
-            ->paginate(50)->withQueryString();
+            ->paginate(20)->withQueryString();
 
-        return view('amendments.global', compact('amendments', 'contracts', 'companies', 'currencies'));
+        return view('amendments.global', compact('amendments', 'contracts', 'companies', 'currencies', 'totalCount'));
     }
 
     public function indexForContract(Contract $contract, Request $request): View
@@ -63,9 +66,10 @@ class AmendmentController extends Controller
             ->when($request->file_filter === '0', fn ($q) => $q->doesntHave('files'))
             ->when($request->file_filter === '1', fn ($q) => $q->has('files'))
             ->orderByDesc('date')
-            ->paginate(50)->withQueryString();
+            ->paginate(20)->withQueryString();
+        $totalCount = $contract->amendments()->count();
         $canEdit = $this->currentUser()->canWrite($contract->project);
-        return view('amendments.index', compact('contract', 'amendments', 'canEdit'));
+        return view('amendments.index', compact('contract', 'amendments', 'canEdit', 'totalCount'));
     }
 
     public function create(Contract $contract): View

@@ -4,7 +4,10 @@
 @section('content')
 <div class="breadcrumb">
     <a href="{{ route('companies.index') }}">{{ __('Companies') }}</a>
-    <span>{{ isset($company) ? $company->name : __('New company') }}</span>
+    @isset($company)
+        <a href="{{ route('companies.show', $company) }}">{{ $company->name }}</a>
+    @endisset
+    <span>{{ isset($company) ? __('Edit') : __('New company') }}</span>
 </div>
 
 <div class="page-header">
@@ -56,7 +59,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
-            <a href="{{ route('companies.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
+            <a href="{{ isset($company) ? route('companies.show', $company) : route('companies.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
         </div>
     </form>
 </div>

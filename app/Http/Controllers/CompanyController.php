@@ -16,14 +16,57 @@ class CompanyController extends Controller
 
     public function index(Request $request): View
     {
+        $totalCount = Company::where('id_group', $this->currentGroupId())->count();
+
         $companies = Company::where('id_group', $this->currentGroupId())
             ->when($request->search, fn ($q) => $q->where('name', 'ilike', "%{$request->search}%"))
             ->orderBy('name')
-            ->paginate(25);
+            ->paginate(20);
 
         $canEdit = $this->currentUser()->canCreateProject();
 
-        return view('companies.index', compact('companies', 'canEdit'));
+        return view('companies.index', compact('companies', 'canEdit', 'totalCount'));
+    }
+
+    public function show(Company $company): View
+    {
+        $this->authorizeCompany($company);
+
+        $user             = $this->currentUser();
+        $currentProjectId = session('current_project_id');
+        $groupId          = $this->currentGroupId();
+
+        // Contracts for the currently active project
+        $currentContracts = $company->contracts()
+            ->where('project_id', $currentProjectId)
+            ->withCount('invoices')
+            ->withSum('items', 'amount')
+            ->orderBy('name')
+            ->get();
+
+        // Other projects in the group the user can at least read
+        $otherAccessibleIds = \App\Models\Project::where('id_group', $groupId)
+            ->where('id', '!=', $currentProjectId)
+            ->get()
+            ->filter(fn ($p) => $user->canRead($p))
+            ->pluck('id');
+
+        // Contracts from those other projects, grouped by project
+        $otherContractsByProject = $company->contracts()
+            ->whereIn('project_id', $otherAccessibleIds)
+            ->with('project')
+            ->withCount('invoices')
+            ->withSum('items', 'amount')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('project_id');
+
+        $canEdit = $user->canCreateProject();
+
+        return view('companies.show', compact(
+            'company', 'canEdit',
+            'currentContracts', 'otherContractsByProject', 'currentProjectId'
+        ));
     }
 
     public function create(): View
@@ -70,7 +113,7 @@ class CompanyController extends Controller
 
         $company->update($data);
 
-        return redirect()->route('companies.index')->with('success', __('Company saved.'));
+        return redirect()->route('companies.show', $company)->with('success', __('Company saved.'));
     }
 
     public function destroy(Company $company): RedirectResponse
@@ -80,8 +123,4 @@ class CompanyController extends Controller
         return redirect()->route('companies.index')->with('success', __('Company deleted.'));
     }
 
-    public function show(Company $company): RedirectResponse
-    {
-        return redirect()->route('companies.edit', $company);
-    }
 }

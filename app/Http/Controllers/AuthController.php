@@ -23,7 +23,13 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials + ['active' => true], $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->intended(route('projects.index'));
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            if ($user->default_project_id) {
+                session(['current_project_id' => $user->default_project_id]);
+            }
+            $default = $user->getDefaultUrl();
+            return redirect()->intended($default ?? route('projects.index'));
         }
 
         return back()->withErrors([

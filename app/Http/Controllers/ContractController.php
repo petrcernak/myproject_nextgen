@@ -39,6 +39,8 @@ class ContractController extends Controller
             Contract::where('project_id', $projectId)->whereNotNull('company_id')->pluck('company_id')
         )->orderBy('name')->pluck('name', 'id');
 
+        $totalCount = Contract::where('project_id', $projectId)->count();
+
         $contracts = Contract::with(['company'])->withCount('files')
             ->where('project_id', $projectId)
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
@@ -51,13 +53,20 @@ class ContractController extends Controller
             ->when($request->file_filter === '0', fn ($q) => $q->doesntHave('files'))
             ->when($request->file_filter === '1', fn ($q) => $q->has('files'))
             ->orderByDesc('created_at')
-            ->paginate(50)
+            ->paginate(20)
             ->withQueryString();
 
         $currentProject = \App\Models\Project::find($projectId);
         $canEdit = $currentProject && $this->currentUser()->canWrite($currentProject);
 
-        return view('contracts.index', compact('contracts', 'currencies', 'companies', 'canEdit'));
+        return view('contracts.index', compact('contracts', 'currencies', 'companies', 'canEdit', 'totalCount', 'currentProject'));
+    }
+
+    public function open(Contract $contract): RedirectResponse
+    {
+        $this->authorizeContract($contract);
+        session(['current_project_id' => $contract->project_id]);
+        return redirect()->route('contracts.show', $contract);
     }
 
     public function show(Contract $contract): View|RedirectResponse

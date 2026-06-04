@@ -194,61 +194,58 @@
 
 @php
 $cols = [
-    ['Amount',            100],
-    ['Adjustment',         90],
-    ['Transfer',           90],
-    ['Actual Budget',     110],
-    ['Contracts',          90],
-    ['Changes',            90],
-    ['Curr. Comm.',       110],
-    ['Invoiced',           90],
-    ['FX Impact',          80],
-    ['Value to Place',     90],
-    ['Anticipated',        90],
-    ['Future Comm.',      100],
-    ['Cost',               90],
-    ['△',                  80],
+    ['Amount',            85],
+    ['Adjustment',        80],
+    ['Transfer',          80],
+    ['Actual Budget',     95],
+    ['Contracts',         80],
+    ['Changes',           75],
+    ['Curr. Comm.',       95],
+    ['Invoiced',          78],
+    ['FX Impact',         75],
+    ['Value to Place',    95],
+    ['Anticipated',       80],
+    ['Future Comm.',      88],
+    ['Cost',              75],
+    ['△',                 65],
 ];
 @endphp
 
 @if($rootCategories->isNotEmpty())
-{{-- Single scroll container — header + rows scroll together --}}
-<div style="overflow-x:auto;margin-bottom:1.5rem" id="budget-table-scroll">
-    {{-- Sticky column header --}}
-    <div style="display:flex;align-items:center;position:sticky;top:0;z-index:20;background:#f1f5f9;border-bottom:2px solid #cbd5e1;padding:.35rem 1rem .35rem 1rem;min-width:max-content;gap:0">
-        <div style="flex:1;min-width:300px;font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em">
-            {{ __('Item') }}
-        </div>
-        @foreach($cols as $i => [$label, $w])
-        <span style="min-width:{{ $w }}px;text-align:right;padding-right:6px;font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">
-            {{ __($label) }}
-        </span>
+<div style="overflow-x:auto;margin-bottom:1.5rem">
+<table class="bgt" style="border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;width:100%">
+    <thead>
+        <tr>
+            <th style="min-width:250px;text-align:left">{{ __('Item') }}</th>
+            @foreach($cols as [$label, $w])
+            <th style="min-width:{{ $w }}px">{{ __($label) }}</th>
+            @endforeach
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($rootCategories as $category)
+            @include('budgets._cat_show', [
+                'category'    => $category,
+                'budget'      => $budget,
+                'depth'       => 0,
+                'ancestors'   => '',
+                'subtotalFn'  => $subtotalFn,
+                'itemCostData'=> $itemCostData,
+                'costData'    => $costData,
+            ])
         @endforeach
-    </div>
-
-    {{-- Category rows --}}
-    @foreach($rootCategories as $category)
-        @include('budgets._cat_show', [
-            'category'    => $category,
-            'budget'      => $budget,
-            'depth'       => 0,
-            'subtotalFn'  => $subtotalFn,
-            'itemCostData'=> $itemCostData,
-            'costData'    => $costData,
-        ])
-    @endforeach
-
-    {{-- Grand total --}}
-    <div class="card card-body" style="display:flex;align-items:center;font-size:13px;font-weight:700;min-width:max-content;margin-top:.25rem;gap:0">
-        <span style="flex:1;min-width:300px">{{ __('Total') }}</span>
         @php $gv = [$grand['amount'],$grand['adj'],$grand['trans'],$grand['actual'],$grand['contracts'],$grand['changes'],$grand['currComm'],$grand['invoiced'],$grand['fxImpact'],$grand['vtp'],$grand['anticipated'],$grand['futureComm'],$grand['cost'],$grand['delta']]; @endphp
-        @foreach($cols as $i => [$label, $w])
-        @php $v = $gv[$i]; @endphp
-        <span style="min-width:{{ $w }}px;text-align:right;padding-right:6px;color:{{ $label === '△' ? $colColorDelta($v) : (in_array($label,['Adjustment','Transfer','FX Impact']) ? $colColor($v) : ($v < 0 ? '#dc2626' : 'inherit')) }}">
-            {{ $v != 0 ? $colFmt($v) : '—' }}
-        </span>
-        @endforeach
-    </div>
+        <tr class="bgt-total">
+            <td>{{ __('Total') }}</td>
+            @foreach($cols as $i => [$label, $w])
+            @php $v = $gv[$i]; @endphp
+            <td style="color:{{ $label==='△' ? $colColorDelta($v) : (in_array($i,[1,2,7,8]) ? $colColor($v) : ($v<0?'#dc2626':'inherit')) }}">
+                {{ $v!=0 ? ($label==='△'||in_array($i,[1,2,7,8]) ? $colSign($v) : $colFmt($v)) : '—' }}
+            </td>
+            @endforeach
+        </tr>
+    </tbody>
+</table>
 </div>
 @else
     <div class="card" style="margin-bottom:1.5rem"><div class="empty"><strong>{{ __('No categories') }}</strong>
@@ -256,5 +253,18 @@ $cols = [
     </div></div>
 @endif
 
+<script>
+var bgtOpen={};
+function bgtToggle(id){
+    bgtOpen[id]=!bgtOpen[id];
+    var row=document.getElementById('bgt-row-'+id);
+    if(row){var c=row.querySelector('.bgt-caret');if(c)c.style.transform=bgtOpen[id]?'':'rotate(90deg)';}
+    document.querySelectorAll('tr[data-ancestors]').forEach(function(r){
+        var anc=(r.dataset.ancestors||'').split(',').filter(Boolean);
+        if(!anc.length)return;
+        r.style.display=anc.every(function(a){return !bgtOpen[a];})?'':'none';
+    });
+}
+</script>
 
 @endsection

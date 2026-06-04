@@ -53,6 +53,17 @@
         </div>
 
         <div class="form-group">
+            <label for="locality_id">{{ __('Locality') }} *</label>
+            <select id="locality_id" name="locality_id" required>
+                <option value="" disabled @selected(old('locality_id', $project->locality_id ?? '') === '')>{{ __('— select locality —') }}</option>
+                @foreach($localities as $loc)
+                    <option value="{{ $loc->id }}" @selected(old('locality_id', $project->locality_id ?? '') == $loc->id)>{{ $loc->name }}</option>
+                @endforeach
+            </select>
+            @error('locality_id')<span class="form-error">{{ $message }}</span>@enderror
+        </div>
+
+        <div class="form-group">
             <label for="note">{{ __('Note') }}</label>
             <textarea id="note" name="note" rows="3">{{ old('note', $project->note ?? '') }}</textarea>
         </div>

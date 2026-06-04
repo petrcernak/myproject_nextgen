@@ -95,6 +95,16 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', __('User saved.'));
     }
 
+    public function resetPassword(\Illuminate\Http\Request $request, User $user): \Illuminate\Http\RedirectResponse
+    {
+        $this->authorizeGroupAdmin($user);
+        $data = $request->validate([
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+        $user->update(['password' => $data['password']]);
+        return back()->with('success', __('Password reset.'));
+    }
+
     public function destroy(User $user): RedirectResponse
     {
         $this->authorizeGroupAdmin($user);

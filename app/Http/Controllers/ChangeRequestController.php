@@ -38,8 +38,11 @@ class ChangeRequestController extends Controller
         $companies  = Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->orderBy('name')->pluck('name', 'id');
         $currencies = $contracts->pluck('currency')->unique()->sort()->values();
 
+        $contractIds = $contracts->pluck('id');
+        $totalCount  = ChangeRequest::whereIn('contract_id', $contractIds)->count();
+
         $changeRequests = ChangeRequest::with(['contract.company', 'items.latestRevision', 'convertedChangeOrder'])
-            ->whereIn('contract_id', $contracts->pluck('id'))
+            ->whereIn('contract_id', $contractIds)
             ->when($request->contract_id, fn ($q) => $q->where('contract_id', $request->contract_id))
             ->when($request->company_id,  fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('company_id', $request->company_id)))
             ->when($request->currency,    fn ($q) => $q->whereHas('contract', fn ($q2) => $q2->where('currency', $request->currency)))
@@ -47,9 +50,9 @@ class ChangeRequestController extends Controller
             ->when($request->date_to,     fn ($q) => $q->where('date', '<=', $request->date_to))
             ->when($request->status,      fn ($q) => $q->where('status', $request->status))
             ->orderByDesc('date')
-            ->paginate(50)->withQueryString();
+            ->paginate(20)->withQueryString();
 
-        return view('change_requests.global', compact('changeRequests', 'contracts', 'companies', 'currencies'));
+        return view('change_requests.global', compact('changeRequests', 'contracts', 'companies', 'currencies', 'totalCount'));
     }
 
     public function indexForContract(Contract $contract, Request $request): View
@@ -63,9 +66,10 @@ class ChangeRequestController extends Controller
             }))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->orderByDesc('date')
-            ->paginate(50)->withQueryString();
+            ->paginate(20)->withQueryString();
+        $totalCount = $contract->changeRequests()->count();
         $canEdit = $this->currentUser()->canWrite($contract->project);
-        return view('change_requests.index', compact('contract', 'changeRequests', 'canEdit'));
+        return view('change_requests.index', compact('contract', 'changeRequests', 'canEdit', 'totalCount'));
     }
 
     public function create(Contract $contract): View

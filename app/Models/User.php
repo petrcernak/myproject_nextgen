@@ -14,7 +14,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'username', 'firstname', 'surname', 'email',
-        'password', 'level', 'id_group', 'active', 'locale',
+        'password', 'level', 'id_group', 'active', 'locale', 'dark_mode',
+        'default_project_id', 'default_page_type', 'default_page_id',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -22,8 +23,9 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password' => 'hashed',
-            'active'   => 'boolean',
+            'password'  => 'hashed',
+            'active'    => 'boolean',
+            'dark_mode' => 'boolean',
         ];
     }
 
@@ -57,6 +59,17 @@ class User extends Authenticatable
     public function canCreateProject(): bool
     {
         return $this->level >= 5;
+    }
+
+    public function getDefaultUrl(): ?string
+    {
+        return match($this->default_page_type) {
+            'projects_index' => route('projects.index'),
+            'project_show'   => $this->default_project_id ? route('projects.show', $this->default_project_id) : route('projects.index'),
+            'budget'         => $this->default_page_id ? route('budgets.show', $this->default_page_id) : null,
+            'contract'       => $this->default_page_id ? route('contracts.show', $this->default_page_id) : null,
+            default          => null,
+        };
     }
 
     public function group(): BelongsTo

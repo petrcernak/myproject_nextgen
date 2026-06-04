@@ -200,187 +200,166 @@
 
 {{-- Contract Items --}}
 <h2 style="font-size:1rem;font-weight:600;margin-bottom:.75rem">{{ __('Contract items') }}</h2>
+
+@if($contract->items->isEmpty())
 <div class="card" style="margin-bottom:1.5rem">
-    @if($contract->items->isEmpty())
-        <div class="empty" style="padding:1.5rem">
-            <strong>{{ __('No items') }}</strong>
-            @if($canEdit)<p><a href="{{ route('contracts.content', $contract) }}">{{ __('Go to edit mode') }}</a></p>@endif
-        </div>
-    @else
-        <div style="overflow-x:auto">
-        <table style="font-size:11px">
-            <thead>
-                <tr>
-                    <th style="width:80px">{{ __('Code') }}</th>
-                    <th>{{ __('Description') }}</th>
-                    <th style="text-align:right;white-space:nowrap;width:110px">{{ __('Amount') }}</th>
-                    @if($hasCos)
-                    <th style="text-align:right;white-space:nowrap;width:90px">{{ __('CO changes') }}</th>
-                    @endif
-                    @if($hasAmendments)
-                    <th style="text-align:right;white-space:nowrap;width:90px">{{ __('Amendments') }}</th>
-                    @endif
-                    @if($hasCoChanges)
-                    <th style="text-align:right;white-space:nowrap;width:110px">{{ __('Effective amount') }}</th>
-                    @endif
-                    <th style="text-align:right;white-space:nowrap;width:100px">{{ __('Invoiced') }}</th>
-                    <th style="text-align:right;white-space:nowrap;width:100px">{{ __('Remaining') }}</th>
-                    @if($hasFuture)
-                    <th style="text-align:right;white-space:nowrap;width:90px;background:#fef2f2">{{ __('CR') }}</th>
-                    <th style="text-align:right;white-space:nowrap;width:90px;background:#fef2f2">{{ __('CA') }}</th>
-                    <th style="text-align:right;white-space:nowrap;width:110px;background:#dbeafe">{{ __('Expected total') }}</th>
-                    @endif
-                </tr>
-            </thead>
-            <tbody>
-                @php
-                    $colCount = 4 + ($hasCos ? 1 : 0) + ($hasAmendments ? 1 : 0) + ($hasCoChanges ? 1 : 0) + ($hasFuture ? 3 : 0);
-
-                    // Recursive subtotal closure — defined once, passed to partials
-                    $subtotalFn = function($cat) use (&$subtotalFn, $crPerItem, $caPerItem): array {
-                        $sub = ['amount'=>0,'co'=>0,'amd'=>0,'effective'=>0,'invoiced'=>0,'remaining'=>0,'cr'=>0,'ca'=>0,'expected'=>0];
-                        foreach ($cat->items as $si) {
-                            $inv = $si->invoiceItems->sum('amount');
-                            $co  = $si->changeOrderItems->filter(fn($c) => $c->changeOrder?->amendment_id === null)->sum('amount');
-                            $amd = $si->amendmentItems->sum('amount') + $si->changeOrderItems->filter(fn($c) => $c->changeOrder?->amendment_id !== null)->sum('amount');
-                            $eff = $si->amount + $co + $amd;
-                            $cr  = $crPerItem[$si->id] ?? 0;
-                            $ca  = $caPerItem[$si->id] ?? 0;
-                            $sub['amount']    += $si->amount;
-                            $sub['co']        += $co;
-                            $sub['amd']       += $amd;
-                            $sub['effective'] += $eff;
-                            $sub['invoiced']  += $inv;
-                            $sub['remaining'] += $eff - $inv;
-                            $sub['cr']        += $cr;
-                            $sub['ca']        += $ca;
-                            $sub['expected']  += $eff + $cr + $ca;
-                        }
-                        foreach ($cat->children as $child) {
-                            $childSub = $subtotalFn($child);
-                            foreach ($sub as $k => $v) { $sub[$k] += $childSub[$k]; }
-                        }
-                        return $sub;
-                    };
-                @endphp
-
-                {{-- Root categories (hierarchical) --}}
-                @foreach($contract->categories->whereNull('parent_id') as $category)
-                    @include('contracts._cat_show', [
-                        'category'      => $category,
-                        'depth'         => 0,
-                        'subtotalFn'    => $subtotalFn,
-                        'hasCos'        => $hasCos,
-                        'hasAmendments' => $hasAmendments,
-                        'hasCoChanges'  => $hasCoChanges,
-                        'hasFuture'     => $hasFuture,
-                        'crPerItem'     => $crPerItem,
-                        'caPerItem'     => $caPerItem,
-                        'colCount'      => $colCount,
-                    ])
-                @endforeach
-
-                {{-- Uncategorized items --}}
-                @php $uncategorized = $contract->items->whereNull('contract_category_id'); @endphp
-                @foreach($uncategorized as $item)
-                @php
-                    $invoiced    = $item->invoiceItems->sum('amount');
-                    $coChange    = $item->changeOrderItems->filter(fn($coi) => $coi->changeOrder?->amendment_id === null)->sum('amount');
-                    $amdChange   = $item->amendmentItems->sum('amount')
-                                 + $item->changeOrderItems->filter(fn($coi) => $coi->changeOrder?->amendment_id !== null)->sum('amount');
-                    $effective   = $item->amount + $coChange + $amdChange;
-                    $remaining   = $effective - $invoiced;
-                    $pct         = $effective > 0 ? min(100, round($invoiced / $effective * 100)) : 0;
-                    $crVal       = $crPerItem[$item->id] ?? null;
-                    $caVal       = $caPerItem[$item->id] ?? null;
-                    $expected    = $effective + ($crVal ?? 0) + ($caVal ?? 0);
-                @endphp
-                <tr>
-                    <td><code style="color:#6b7280;font-size:11px">{{ $item->code ?? '—' }}</code></td>
-                    <td>
-                        {{ $item->description }}
-                        <div style="margin-top:.3rem;height:3px;background:#e5e7eb;border-radius:2px">
-                            <div style="height:3px;border-radius:2px;width:{{ $pct }}%;background:{{ $pct >= 100 ? '#22c55e' : '#3b82f6' }}"></div>
-                        </div>
-                    </td>
-                    <td style="text-align:right;white-space:nowrap">{{ number_format($item->amount, 2, ',', ' ') }}</td>
-                    @if($hasCos)
-                    <td style="text-align:right;white-space:nowrap;color:{{ $coChange > 0 ? '#1d4ed8' : ($coChange < 0 ? '#dc2626' : '#9ca3af') }}">
-                        @if($coChange != 0)
-                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($coChange, 2, ',', ' ') }}</a>
-                        @else—@endif
-                    </td>
-                    @endif
-                    @if($hasAmendments)
-                    <td style="text-align:right;white-space:nowrap;color:{{ $amdChange > 0 ? '#1d4ed8' : ($amdChange < 0 ? '#dc2626' : '#9ca3af') }}">
-                        @if($amdChange != 0)
-                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($amdChange, 2, ',', ' ') }}</a>
-                        @else—@endif
-                    </td>
-                    @endif
-                    @if($hasCoChanges)
-                    <td style="text-align:right;white-space:nowrap;font-weight:600">{{ number_format($effective, 2, ',', ' ') }}</td>
-                    @endif
-                    <td style="text-align:right;white-space:nowrap;color:#6b7280">{{ number_format($invoiced, 2, ',', ' ') }}</td>
-                    <td style="text-align:right;white-space:nowrap;font-weight:600;color:{{ $remaining > 0 ? '#1d4ed8' : ($remaining < 0 ? '#dc2626' : '#6b7280') }}">
-                        {{ number_format($remaining, 2, ',', ' ') }}
-                    </td>
-                    @if($hasFuture)
-                    <td style="text-align:right;white-space:nowrap;background:#fef2f2;color:{{ $crVal !== null ? ($crVal > 0 ? '#dc2626' : ($crVal < 0 ? '#16a34a' : '#6b7280')) : '#d1d5db' }}">
-                        @if($crVal !== null)
-                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($crVal, 2, ',', ' ') }}</a>
-                        @else—@endif
-                    </td>
-                    <td style="text-align:right;white-space:nowrap;background:#fef2f2;color:{{ $caVal !== null ? ($caVal > 0 ? '#dc2626' : ($caVal < 0 ? '#16a34a' : '#6b7280')) : '#d1d5db' }}">
-                        @if($caVal !== null)
-                            <a href="{{ route('contract-items.show', $item) }}" style="color:inherit;font-weight:600">{{ number_format($caVal, 2, ',', ' ') }}</a>
-                        @else—@endif
-                    </td>
-                    <td style="text-align:right;font-weight:600;background:#dbeafe;color:#1d4ed8">
-                        {{ number_format($expected, 2, ',', ' ') }}
-                    </td>
-                    @endif
-                </tr>
-                @endforeach
-                <tr style="background:#f9fafb;font-weight:600">
-                    <td colspan="2" style="text-align:right;color:#6b7280;font-weight:400;font-size:12px">{{ __('Total') }}</td>
-                    <td style="text-align:right">{{ number_format($contract->total, 2, ',', ' ') }}</td>
-                    @if($hasCos)
-                    @php $totalCoOnly = $contract->standaloneChangeOrders->sum(fn($co) => $co->items->sum('amount')); @endphp
-                    <td style="text-align:right;font-size:12px;color:{{ $totalCoOnly >= 0 ? '#1d4ed8' : '#dc2626' }}">
-                        {{ $totalCoOnly != 0 ? number_format($totalCoOnly, 2, ',', ' ') : '—' }}
-                    </td>
-                    @endif
-                    @if($hasAmendments)
-                    @php $totalAmdOnly = $contract->amendments->sum('total'); @endphp
-                    <td style="text-align:right;font-size:12px;color:{{ $totalAmdOnly >= 0 ? '#1d4ed8' : '#dc2626' }}">
-                        {{ $totalAmdOnly != 0 ? number_format($totalAmdOnly, 2, ',', ' ') : '—' }}
-                    </td>
-                    @endif
-                    @if($hasCoChanges)
-                    <td style="text-align:right">{{ number_format($contract->revised_total, 2, ',', ' ') }}</td>
-                    @endif
-                    @php
-                        $totalInvoiced   = $contract->invoiced;
-                        $effectiveTotal  = $hasCoChanges ? $contract->revised_total : $contract->total;
-                        $totalRemaining  = $effectiveTotal - $totalInvoiced;
-                    @endphp
-                    <td style="text-align:right;color:#6b7280">{{ number_format($totalInvoiced, 2, ',', ' ') }}</td>
-                    <td style="text-align:right;font-weight:600;color:{{ $totalRemaining > 0 ? '#1d4ed8' : ($totalRemaining < 0 ? '#dc2626' : '#6b7280') }}">{{ number_format($totalRemaining, 2, ',', ' ') }}</td>
-                    @if($hasFuture)
-                    <td style="text-align:right;font-size:12px;background:#fef2f2;color:{{ $crTotal > 0 ? '#dc2626' : ($crTotal < 0 ? '#16a34a' : '#9ca3af') }}">
-                        {{ $crTotal != 0 ? number_format($crTotal, 2, ',', ' ') : '—' }}
-                    </td>
-                    <td style="text-align:right;font-size:12px;background:#fef2f2;color:{{ $caTotal > 0 ? '#dc2626' : ($caTotal < 0 ? '#16a34a' : '#9ca3af') }}">
-                        {{ $caTotal != 0 ? number_format($caTotal, 2, ',', ' ') : '—' }}
-                    </td>
-                    <td style="text-align:right;background:#dbeafe;color:#1d4ed8">{{ number_format($expectedFinal, 2, ',', ' ') }}</td>
-                    @endif
-                </tr>
-            </tbody>
-        </table>
-        </div>
-    @endif
+    <div class="empty" style="padding:1.5rem">
+        <strong>{{ __('No items') }}</strong>
+        @if($canEdit)<p><a href="{{ route('contracts.content', $contract) }}">{{ __('Go to edit mode') }}</a></p>@endif
+    </div>
 </div>
+@else
+
+@php
+    $subtotalFn = function($cat) use (&$subtotalFn, $crPerItem, $caPerItem): array {
+        $sub = ['amount'=>0,'co'=>0,'amd'=>0,'effective'=>0,'invoiced'=>0,'remaining'=>0,'cr'=>0,'ca'=>0,'expected'=>0];
+        foreach ($cat->items as $si) {
+            $inv = $si->invoiceItems->sum('amount');
+            $co  = $si->changeOrderItems->filter(fn($c) => $c->changeOrder?->amendment_id === null)->sum('amount');
+            $amd = $si->amendmentItems->sum('amount') + $si->changeOrderItems->filter(fn($c) => $c->changeOrder?->amendment_id !== null)->sum('amount');
+            $eff = $si->amount + $co + $amd;
+            $cr  = $crPerItem[$si->id] ?? 0;
+            $ca  = $caPerItem[$si->id] ?? 0;
+            $sub['amount']    += $si->amount;
+            $sub['co']        += $co;
+            $sub['amd']       += $amd;
+            $sub['effective'] += $eff;
+            $sub['invoiced']  += $inv;
+            $sub['remaining'] += $eff - $inv;
+            $sub['cr']        += $cr;
+            $sub['ca']        += $ca;
+            $sub['expected']  += $eff + $cr + $ca;
+        }
+        foreach ($cat->children as $child) {
+            $childSub = $subtotalFn($child);
+            foreach ($sub as $k => $v) { $sub[$k] += $childSub[$k]; }
+        }
+        return $sub;
+    };
+    $totalCoOnly     = $contract->standaloneChangeOrders->sum(fn($co) => $co->items->sum('amount'));
+    $totalAmdOnly    = $contract->amendments->sum('total');
+    $totalInvoiced   = $contract->invoiced;
+    $effectiveTotal  = $hasCoChanges ? $contract->revised_total : $contract->total;
+    $totalRemaining  = $effectiveTotal - $totalInvoiced;
+@endphp
+
+<div style="overflow-x:auto;margin-bottom:1.5rem">
+<table class="bgt" style="border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;width:100%">
+    <thead>
+        <tr>
+            <th style="min-width:80px;text-align:left">{{ __('Code') }}</th>
+            <th style="min-width:220px;text-align:left;white-space:normal">{{ __('Description') }}</th>
+            <th style="min-width:120px">{{ __('Amount') }}</th>
+            @if($hasCos)<th style="min-width:110px">{{ __('CO changes') }}</th>@endif
+            @if($hasAmendments)<th style="min-width:110px">{{ __('Amendments') }}</th>@endif
+            @if($hasCoChanges)<th style="min-width:130px">{{ __('Effective amount') }}</th>@endif
+            <th style="min-width:110px">{{ __('Invoiced') }}</th>
+            <th style="min-width:110px">{{ __('Remaining') }}</th>
+            @if($hasFuture)
+            <th style="min-width:100px">{{ __('CR') }}</th>
+            <th style="min-width:100px">{{ __('CA') }}</th>
+            <th style="min-width:130px">{{ __('Expected total') }}</th>
+            @endif
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($contract->categories->whereNull('parent_id') as $category)
+            @include('contracts._cat_show',[
+                'category'      => $category,
+                'depth'         => 0,
+                'ancestors'     => '',
+                'subtotalFn'    => $subtotalFn,
+                'hasCos'        => $hasCos,
+                'hasAmendments' => $hasAmendments,
+                'hasCoChanges'  => $hasCoChanges,
+                'hasFuture'     => $hasFuture,
+                'crPerItem'     => $crPerItem,
+                'caPerItem'     => $caPerItem,
+            ])
+        @endforeach
+
+        @foreach($contract->items->whereNull('contract_category_id') as $item)
+        @php
+            $invoiced  = $item->invoiceItems->sum('amount');
+            $coChange  = $item->changeOrderItems->filter(fn($coi) => $coi->changeOrder?->amendment_id === null)->sum('amount');
+            $amdChange = $item->amendmentItems->sum('amount')
+                       + $item->changeOrderItems->filter(fn($coi) => $coi->changeOrder?->amendment_id !== null)->sum('amount');
+            $effective = $item->amount + $coChange + $amdChange;
+            $remaining = $effective - $invoiced;
+            $pct       = $effective > 0 ? min(100, round($invoiced / $effective * 100)) : 0;
+            $crVal     = $crPerItem[$item->id] ?? null;
+            $caVal     = $caPerItem[$item->id] ?? null;
+            $expected  = $effective + ($crVal ?? 0) + ($caVal ?? 0);
+        @endphp
+        <tr class="bgt-item" data-ancestors="">
+            <td><code style="color:#6b7280;font-size:11px">{{ $item->code ?? '—' }}</code></td>
+            <td style="text-align:left;white-space:normal">
+                {{ $item->description }}
+                <div style="margin-top:.25rem;height:3px;background:#e5e7eb;border-radius:2px">
+                    <div style="height:3px;border-radius:2px;width:{{ $pct }}%;background:{{ $pct>=100?'#22c55e':'#3b82f6' }}"></div>
+                </div>
+            </td>
+            <td>{{ number_format($item->amount,2,',',' ') }}</td>
+            @if($hasCos)
+            <td style="color:{{ $coChange>0?'#1d4ed8':($coChange<0?'#dc2626':'#9ca3af') }}">
+                @if($coChange!=0)<a href="{{ route('contract-items.show',$item) }}" style="color:inherit;text-decoration:none;display:block;text-align:right;font-weight:600">{{ number_format($coChange,2,',',' ') }}</a>@else—@endif
+            </td>
+            @endif
+            @if($hasAmendments)
+            <td style="color:{{ $amdChange>0?'#1d4ed8':($amdChange<0?'#dc2626':'#9ca3af') }}">
+                @if($amdChange!=0)<a href="{{ route('contract-items.show',$item) }}" style="color:inherit;text-decoration:none;display:block;text-align:right;font-weight:600">{{ number_format($amdChange,2,',',' ') }}</a>@else—@endif
+            </td>
+            @endif
+            @if($hasCoChanges)<td style="font-weight:600">{{ number_format($effective,2,',',' ') }}</td>@endif
+            <td style="color:#6b7280">{{ number_format($invoiced,2,',',' ') }}</td>
+            <td style="font-weight:600;color:{{ $remaining>0?'#1d4ed8':($remaining<0?'#dc2626':'#6b7280') }}">{{ number_format($remaining,2,',',' ') }}</td>
+            @if($hasFuture)
+            <td style="color:{{ $crVal!==null?($crVal>0?'#dc2626':($crVal<0?'#16a34a':'#6b7280')):'#d1d5db' }}">
+                @if($crVal!==null)<a href="{{ route('contract-items.show',$item) }}" style="color:inherit;text-decoration:none;display:block;text-align:right;font-weight:600">{{ number_format($crVal,2,',',' ') }}</a>@else—@endif
+            </td>
+            <td style="color:{{ $caVal!==null?($caVal>0?'#dc2626':($caVal<0?'#16a34a':'#6b7280')):'#d1d5db' }}">
+                @if($caVal!==null)<a href="{{ route('contract-items.show',$item) }}" style="color:inherit;text-decoration:none;display:block;text-align:right;font-weight:600">{{ number_format($caVal,2,',',' ') }}</a>@else—@endif
+            </td>
+            <td style="font-weight:600;color:#1d4ed8">{{ number_format($expected,2,',',' ') }}</td>
+            @endif
+        </tr>
+        @endforeach
+
+        <tr class="bgt-total">
+            <td colspan="2">{{ __('Total') }}</td>
+            <td>{{ number_format($contract->total,2,',',' ') }}</td>
+            @if($hasCos)
+            <td style="color:{{ $totalCoOnly>=0?'#1d4ed8':'#dc2626' }}">{{ $totalCoOnly!=0?number_format($totalCoOnly,2,',',' '):'—' }}</td>
+            @endif
+            @if($hasAmendments)
+            <td style="color:{{ $totalAmdOnly>=0?'#1d4ed8':'#dc2626' }}">{{ $totalAmdOnly!=0?number_format($totalAmdOnly,2,',',' '):'—' }}</td>
+            @endif
+            @if($hasCoChanges)<td>{{ number_format($contract->revised_total,2,',',' ') }}</td>@endif
+            <td style="color:#6b7280">{{ number_format($totalInvoiced,2,',',' ') }}</td>
+            <td style="color:{{ $totalRemaining>0?'#1d4ed8':($totalRemaining<0?'#dc2626':'#6b7280') }}">{{ number_format($totalRemaining,2,',',' ') }}</td>
+            @if($hasFuture)
+            <td style="color:{{ $crTotal>0?'#dc2626':($crTotal<0?'#16a34a':'#9ca3af') }}">{{ $crTotal!=0?number_format($crTotal,2,',',' '):'—' }}</td>
+            <td style="color:{{ $caTotal>0?'#dc2626':($caTotal<0?'#16a34a':'#9ca3af') }}">{{ $caTotal!=0?number_format($caTotal,2,',',' '):'—' }}</td>
+            <td style="color:#1d4ed8">{{ number_format($expectedFinal,2,',',' ') }}</td>
+            @endif
+        </tr>
+    </tbody>
+</table>
+</div>
+@endif
+
+<script>
+var bgtOpen={};
+function bgtToggle(id){
+    bgtOpen[id]=!bgtOpen[id];
+    var row=document.getElementById('bgt-row-'+id);
+    if(row){var c=row.querySelector('.bgt-caret');if(c)c.style.transform=bgtOpen[id]?'':'rotate(90deg)';}
+    document.querySelectorAll('tr[data-ancestors]').forEach(function(r){
+        var anc=(r.dataset.ancestors||'').split(',').filter(Boolean);
+        if(!anc.length)return;
+        r.style.display=anc.every(function(a){return !bgtOpen[a];})?'':'none';
+    });
+}
+</script>
 
 @endsection

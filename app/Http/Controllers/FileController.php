@@ -70,11 +70,17 @@ class FileController extends Controller
             ->when($request->date_from,fn ($q) => $q->whereDate('created_at', '>=', $request->date_from))
             ->when($request->date_to,  fn ($q) => $q->whereDate('created_at', '<=', $request->date_to))
             ->orderByDesc('created_at')
-            ->paginate(100)->withQueryString();
+            ->paginate(20)->withQueryString();
+
+        $totalCount = File::where(function ($q) use ($typeMap) {
+            foreach ($typeMap as [$class, $ids]) {
+                $q->orWhere(fn ($s) => $s->where('fileable_type', $class)->whereIn('fileable_id', $ids));
+            }
+        })->count();
 
         $allTags = FileTag::where('id_group', $this->currentGroupId())->orderBy('name')->pluck('name');
 
-        return view('files.index', compact('files', 'allTags'));
+        return view('files.index', compact('files', 'allTags', 'totalCount'));
     }
 
     private function sanitizeFilename(string $name): string

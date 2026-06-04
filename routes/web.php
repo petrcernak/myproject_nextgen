@@ -29,6 +29,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/', fn () => redirect()->route('contracts.index'));
+
+    Route::get('settings',             [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings');
+    Route::get('settings/password',   [\App\Http\Controllers\SettingsController::class, 'password'])->name('settings.password.form');
+    Route::post('settings/password',  [\App\Http\Controllers\SettingsController::class, 'updatePassword'])->name('settings.password');
+    Route::post('settings/dark-mode', [\App\Http\Controllers\SettingsController::class, 'toggleDarkMode'])->name('settings.dark-mode');
+    Route::post('settings/defaults',  [\App\Http\Controllers\SettingsController::class, 'saveDefaults'])->name('settings.defaults');
+    Route::post('users/{user}/reset-password', [\App\Http\Controllers\UserController::class, 'resetPassword'])->name('users.reset-password');
     Route::post('project/switch/{project}', function (\App\Models\Project $project) {
         session(['current_project_id' => $project->id]);
         return redirect()->back()->with('success', __('Switched to project: :name', ['name' => $project->name]));
@@ -53,9 +60,11 @@ Route::middleware('auth')->group(function () {
         return redirect()->route('contracts.index')->with('success', __('Switched to group: :name', ['name' => $group->name]));
     })->name('group.switch');
 
+    Route::resource('localities', \App\Http\Controllers\LocalityController::class);
     Route::resource('projects', ProjectController::class);
     Route::resource('projects.contracts', ContractController::class)->shallow();
     Route::get('contracts', [ContractController::class, 'index'])->name('contracts.index');
+    Route::get('contracts/{contract}/open', [ContractController::class, 'open'])->name('contracts.open');
     Route::get('contracts-underbilled', [ContractController::class, 'underbilled'])->name('contracts.underbilled');
     Route::get('contracts-overbilled',  [ContractController::class, 'overbilled'])->name('contracts.overbilled');
     Route::get('contracts/{contract}/files', [ContractController::class, 'showFiles'])->name('contracts.files');

@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'MyProject') — MyProject</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: #f5f5f5; color: #333; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; background: #f5f5f5; color: #333; font-feature-settings: 'cv08','cv11'; }
         a { color: #2563eb; text-decoration: none; }
         a:hover { text-decoration: underline; }
 
@@ -78,6 +81,26 @@
         details.cat-card[open] > summary .cat-caret { transform: rotate(90deg); }
         details.cat-card > summary::-webkit-details-marker { display:none; }
 
+        /* ── List & report tables (.ltbl / .bgt) ── */
+        .ltbl,.bgt{border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%}
+        .ltbl th,.ltbl td,.bgt th,.bgt td{padding:.3rem .6rem;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle}
+        .ltbl th:first-child,.ltbl td:first-child,.bgt th:first-child,.bgt td:first-child{border-left:none}
+        .bgt th,.bgt td{text-align:right}
+        .bgt th:first-child,.bgt td:first-child{text-align:left;white-space:normal}
+        .ltbl thead tr,.bgt thead tr{position:sticky;top:0;z-index:20;background:#f1f5f9;border-bottom:2px solid #cbd5e1}
+        .ltbl thead th,.bgt thead th{font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;vertical-align:top}
+        .ltbl tbody tr:hover td{background:#f9fafb}
+        .ltbl td:first-child{border-left:none}
+        .bgt .bgt-cat{background:#f8fafc;cursor:pointer;user-select:none}
+        .bgt .bgt-cat:hover{background:#f1f5f9}
+        .bgt .bgt-item:hover td{background:#f9fafb}
+        .bgt .bgt-total{font-weight:700;font-size:13px;border-top:2px solid #cbd5e1;background:#f1f5f9}
+        /* Column filter inputs */
+        .fi{display:block;width:100%;margin-top:.3rem;padding:.2rem .35rem;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;border:1px solid #d1d5db;border-radius:3px;background:#fff;color:#374151;box-sizing:border-box}
+        .fi:focus{outline:none;border-color:#6366f1;box-shadow:none}
+        .fi-active{background:#eff6ff!important;border-color:#3b82f6!important;color:#1e40af!important}
+        .th-filtered{background:#dbeafe!important}
+
         /* Project switcher */
         .project-switcher { position: relative; }
         .project-btn { background: #334155; border: none; color: #fff; padding: .35rem .75rem; border-radius: 5px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
@@ -111,9 +134,94 @@
         .nav-dd a:hover { background: #334155; color: #fff; }
         .nav-dd a.active { background: #1d4ed8; color: #fff; }
         .nav-dd-sep { border-top: 1px solid #334155; margin: .25rem 0; }
+        .form-error { display: block; font-size: 11px; color: #dc2626; margin-top: .2rem; }
+        /* Dark mode toggle button (settings page) */
+        .dark-toggle { display:inline-flex;align-items:center;gap:.5rem;padding:.5rem 1rem;border-radius:5px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:13px;cursor:pointer;font-weight:500; }
+        .dark-toggle:hover { background:#f9fafb; }
+        body.dark .dark-toggle { background:#334155;border-color:#475569;color:#e2e8f0; }
+        body.dark .dark-toggle:hover { background:#3f4f66; }
+
+        /* ── Dark mode ──────────────────────────────────────────────────────── */
+        body.dark { background:#0f172a; color:#e2e8f0; color-scheme:dark; }
+        body.dark main.page { color:#e2e8f0; }
+
+        /* Links */
+        body.dark a { color:#60a5fa; }
+        body.dark a:hover { color:#93c5fd; }
+
+        /* Headings & labels */
+        body.dark h1,body.dark h2,body.dark h3 { color:#f1f5f9; }
+        body.dark label { color:#cbd5e1; }
+        body.dark .breadcrumb,body.dark .breadcrumb a,body.dark .breadcrumb span { color:#94a3b8 !important; }
+
+        /* Cards */
+        body.dark .card { background:#1e293b; border-color:#334155; }
+        body.dark .card-body { background:#1e293b; }
+
+        /* Tables */
+        body.dark table { background:#1e293b; }
+        body.dark th { background:#162032 !important; color:#94a3b8 !important; border-bottom-color:#334155 !important; }
+        body.dark td { border-bottom-color:#334155 !important; color:#e2e8f0; }
+        body.dark tr:last-child td { border-bottom:none; }
+        body.dark tr:hover td { background:#2d3f55 !important; }
+        body.dark .ltbl th,body.dark .ltbl td,body.dark .bgt th,body.dark .bgt td{border-left-color:#334155!important}
+        body.dark .ltbl thead tr,body.dark .bgt thead tr{background:#162032!important}
+        body.dark .bgt .bgt-cat{background:#1a2740!important}
+        body.dark .bgt .bgt-total{background:#162032!important}
+        body.dark .fi{background:#1e293b!important;border-color:#334155!important;color:#e2e8f0!important}
+        body.dark .fi-active{background:#1e3a5f!important;border-color:#3b82f6!important;color:#93c5fd!important}
+        body.dark .th-filtered{background:#1e3a5f!important}
+
+        /* Forms */
+        body.dark input[type=text],body.dark input[type=password],body.dark input[type=email],
+        body.dark input[type=date],body.dark input[type=number],body.dark select,body.dark textarea {
+            background:#1e293b !important;border-color:#475569 !important;color:#e2e8f0 !important; }
+        body.dark input:focus,body.dark select:focus,body.dark textarea:focus {
+            border-color:#3b82f6 !important;box-shadow:0 0 0 2px rgba(59,130,246,.25) !important; }
+
+        /* Buttons */
+        body.dark .btn-secondary { background:#334155 !important;color:#e2e8f0 !important;border-color:#475569 !important; }
+        body.dark .btn-secondary:hover { filter:brightness(1.2); }
+
+        /* Alerts */
+        body.dark .alert-success { background:#14532d !important;border-color:#166534 !important;color:#bbf7d0 !important; }
+        body.dark .alert-error   { background:#450a0a !important;border-color:#991b1b !important;color:#fecaca !important; }
+        body.dark .alert-info    { background:#1e3a5f !important;border-color:#1d4ed8 !important;color:#bfdbfe !important; }
+
+        /* Badges */
+        body.dark .badge-gray { background:#334155 !important;color:#cbd5e1 !important; }
+
+        /* ── Inline-style overrides (hardcoded colors in templates) ── */
+        /* White / light backgrounds */
+        body.dark [style*="background:#fff"]     { background:#1e293b !important; }
+        body.dark [style*="background: #fff"]    { background:#1e293b !important; }
+        body.dark [style*="background:#f8fafc"]  { background:#162032 !important; }
+        body.dark [style*="background:#f9fafb"]  { background:#162032 !important; }
+        body.dark [style*="background:#f3f4f6"]  { background:#1e293b !important; }
+        body.dark [style*="background:#f1f5f9"]  { background:#162032 !important; }
+        /* Dark/body text */
+        body.dark [style*="color:#374151"]  { color:#e2e8f0 !important; }
+        body.dark [style*="color:#1f2937"]  { color:#e2e8f0 !important; }
+        body.dark [style*="color:#111827"]  { color:#f1f5f9 !important; }
+        /* Muted text */
+        body.dark [style*="color:#6b7280"]  { color:#94a3b8 !important; }
+        body.dark [style*="color:#9ca3af"]  { color:#64748b !important; }
+        body.dark [style*="color:#d1d5db"]  { color:#475569 !important; }
+        /* Borders */
+        body.dark [style*="border-bottom:1px solid #e5e7eb"]  { border-bottom-color:#334155 !important; }
+        body.dark [style*="border-bottom:1px solid #f3f4f6"]  { border-bottom-color:#1e293b !important; }
+        body.dark [style*="border:1px solid #e5e7eb"]          { border-color:#334155 !important; }
+        body.dark [style*="border-top:1px solid #e5e7eb"]      { border-top-color:#334155 !important; }
+        body.dark [style*="border-top:1px solid #dbeafe"]      { border-top-color:#1e40af !important; }
+
+        /* Budget table sticky header & categories */
+        body.dark #budget-table-scroll > div:first-child { background:#162032 !important;border-bottom-color:#334155 !important; }
+        body.dark .cat-card { background:#1e293b !important;box-shadow:0 1px 3px rgba(0,0,0,.5) !important; }
+        body.dark details.cat-card > summary { background:#162032 !important;border-bottom-color:#334155 !important; }
+        body.dark .cat-card > div:first-child:not(summary) { background:#162032 !important; }
     </style>
 </head>
-<body>
+<body class="{{ auth()->check() && auth()->user()->dark_mode ? 'dark' : '' }}">
 
 <header class="navbar">
     <div style="display:flex;flex-direction:column;line-height:1.2">
@@ -156,20 +264,27 @@
         <div class="project-dropdown" id="projectDropdown">
             <div class="project-dropdown-header">{{ __('Switch project') }}</div>
             @php
-                $allProjects = \App\Models\Project::select('id','name','code')
+                $allProjects = \App\Models\Project::with('locality')
+                    ->select('id','name','code','locality_id')
                     ->where('active', true)
                     ->when($currentGroup, fn ($q) => $q->where('id_group', $currentGroup->id))
                     ->when(auth()->user()->level < 5, fn ($q) => $q->whereHas('userRights', fn ($q2) => $q2->where('user_id', auth()->id())))
-                    ->orderBy('name')->get();
+                    ->orderBy('locality_id')->orderBy('name')->get();
+                $groupedProjects = $allProjects->groupBy(fn($p) => $p->locality?->name ?? '');
             @endphp
-            @foreach($allProjects as $p)
-                <form method="POST" action="{{ route('project.switch', $p) }}">
-                    @csrf
-                    <button type="submit" class="project-option {{ $currentProject?->id === $p->id ? 'active' : '' }}">
-                        <code style="font-size:10px;color:#94a3b8;margin-right:.4rem">{{ $p->code }}</code>
-                        {{ $p->name }}
-                    </button>
-                </form>
+            @foreach($groupedProjects as $localityName => $projects)
+                @if($localityName)
+                    <div class="project-dropdown-header" style="padding-top:.5rem">{{ $localityName }}</div>
+                @endif
+                @foreach($projects as $p)
+                    <form method="POST" action="{{ route('project.switch', $p) }}">
+                        @csrf
+                        <button type="submit" class="project-option {{ $currentProject?->id === $p->id ? 'active' : '' }}">
+                            <code style="font-size:10px;color:#94a3b8;margin-right:.4rem">{{ $p->code }}</code>
+                            {{ $p->name }}
+                        </button>
+                    </form>
+                @endforeach
             @endforeach
             @if(auth()->user()->canCreateProject())
             <div style="border-top:1px solid #334155;margin-top:.25rem;padding-top:.25rem">
@@ -208,6 +323,7 @@
         <a href="{{ route('projects.index') }}" class="{{ request()->routeIs('projects.*') ? 'active' : '' }}">{{ __('Projects') }}</a>
         @endif
         @if(auth()->user()->isGroupAdmin())
+            <a href="{{ route('localities.index') }}" class="{{ request()->routeIs('localities.*') ? 'active' : '' }}">{{ __('Localities') }}</a>
             <a href="{{ route('users.index') }}" class="{{ request()->routeIs('users.*') ? 'active' : '' }}">{{ __('Users') }}</a>
             <a href="{{ route('activity-log.index') }}" class="{{ request()->routeIs('activity-log.*') ? 'active' : '' }}">{{ __('Activity log') }}</a>
         @endif
@@ -226,7 +342,9 @@
                 </form>
             @endforeach
         </div>
-        <strong>{{ auth()->user()->full_name }}</strong>
+        <a href="{{ route('settings') }}" style="color:#e2e8f0;font-size:13px;font-weight:600;text-decoration:none">
+            {{ auth()->user()->full_name }}
+        </a>
         <form method="POST" action="{{ route('logout') }}" style="display:inline">
             @csrf
             <button type="submit" class="btn btn-secondary btn-sm">{{ __('Log out') }}</button>
@@ -308,5 +426,6 @@
         });
     }
 </script>
+@stack('scripts')
 </body>
 </html>
